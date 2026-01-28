@@ -151,12 +151,6 @@ coverage/
 
 # Machine Learning Models
 # ========================
-*.pkl
-*.pickle
-*.joblib
-*.model
-models/
-checkpoints/
 
 # Backup Files
 # ============
@@ -202,9 +196,6 @@ checkpoints/
 
 # Documentation Build
 # ===================
-docs/_build/
-site/
-.mkdocs/
 
 # Local Configuration
 # ===================
@@ -265,12 +256,7 @@ backend/data/**/*.md
 # Testing Files (Keep only essential)
 # ===================================
 # Development/debug scripts
-simple_main.py
-correct_extraction.py
-fix_extraction.py
-data_processor.py
-train_from_excel.py
-serve_frontend.py
+
 test_training.py
 debug_training.py
 
