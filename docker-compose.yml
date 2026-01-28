@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  viq-rag-system:
+    build: .
+    container_name: viq-rag-system
+    restart: unless-stopped
+    ports:
+      - "8003:8000"  # Using port 8003 to avoid conflicts
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=gpt-4o-mini
+      - OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - LOG_LEVEL=INFO
+      - DEFAULT_TOP_K=5
+      - SIMILARITY_THRESHOLD=0.3
+      - RERANK_TOP_K=10
+      - MAX_CONCURRENT_REQUESTS=10
+      - REQUEST_TIMEOUT=30
+    volumes:
+      - ./backend/data:/app/data
+      - ./backend/logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - viq-network
+
+networks:
+  viq-network:
+    driver: bridge

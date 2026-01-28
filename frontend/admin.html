@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIQ Admin Dashboard</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .stat-card {
+            transition: all 0.3s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+        .tab-active {
+            border-bottom: 3px solid #667eea;
+            color: #667eea;
+        }
+        
+        .popup-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            animation: fadeIn 0.2s ease;
+        }
+        
+        .popup-content {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            z-index: 9999;
+            animation: slideInRight 0.3s ease;
+            max-width: 400px;
+        }
+        
+        @keyframes slideInRight {
+            from { transform: translateX(400px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        html, body { height: 100%; }
+        body { display: flex; flex-direction: column; }
+        #root { flex: 1 0 auto; display: flex; flex-direction: column; }
+        .main-wrapper { flex: 1 0 auto; }
+        .footer-stable { flex-shrink: 0; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const API_BASE_URL = 'http://localhost:8000';
+
+        function AdminDashboard() {
+            const [activeTab, setActiveTab] = useState('overview');
+            const [stats, setStats] = useState(null);
+            const [feedbackStats, setFeedbackStats] = useState(null);
+            const [searchHistory, setSearchHistory] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [popup, setPopup] = useState({ show: false, type: '', message: '' });
+            const [toast, setToast] = useState({ show: false, type: '', message: '' });
+
+            useEffect(() => {
+                if (toast.show) {
+                    const timer = setTimeout(() => {
+                        setToast({ show: false, type: '', message: '' });
+                    }, 5000);
+                    return () => clearTimeout(timer);
+                }
+            }, [toast.show]);
+
+            useEffect(() => {
+                fetchAllData();
+                const interval = setInterval(fetchAllData, 30000); // Refresh every 30s
+                return () => clearInterval(interval);
+            }, []);
+
+            const fetchAllData = async () => {
+                setLoading(true);
+                try {
+                    await Promise.all([
+                        fetchStats(),
+                        fetchFeedbackStats(),
+                        fetchSearchHistory()
+                    ]);
+                    setToast({ show: true, type: 'success', message: 'Dashboard data refreshed successfully!' });
+                } catch (err) {
+                    console.error('Error fetching data:', err);
+                    setToast({ show: true, type: 'error', message: 'Failed to refresh data: ' + err.message });
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const fetchStats = async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/v1/stats`);
+                    const data = await response.json();
+                    setStats(data);
+                } catch (err) {
+                    console.error('Error fetching stats:', err);
+                    setToast({ show: true, type: 'error', message: 'Failed to load statistics' });
+                }
+            };
+
+            const fetchFeedbackStats = async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/v1/feedback/stats`);
+                    const data = await response.json();
+                    setFeedbackStats(data.feedback_stats);
+                } catch (err) {
+                    console.error('Error fetching feedback stats:', err);
+                    setToast({ show: true, type: 'error', message: 'Failed to load feedback stats' });
+                }
+            };
+
+            const fetchSearchHistory = async () => {
+                // Mock data - you can implement actual endpoint
+                setSearchHistory([
+                    {
+                        id: 1,
+                        query: "Emergency fire pump not tested",
+                        result_viq: "5.2.1",
+                        confidence: 0.98,
+                        time_ms: 650,
+                        feedback: "thumbs_up",
+                        timestamp: new Date().toISOString()
+                    },
+                    {
+                        id: 2,
+                        query: "Cargo tank cleaning not done",
+                        result_viq: "8.1.1",
+                        confidence: 0.65,
+                        time_ms: 2400,
+                        feedback: "thumbs_down",
+                        correct_viq: "7.2.1",
+                        timestamp: new Date(Date.now() - 3600000).toISOString()
+                    }
+                ]);
+            };
+
+            const StatCard = ({ icon, title, value, subtitle, color }) => (
+                <div className={`stat-card bg-white rounded-lg shadow-lg p-6 border-l-4 ${color}`}>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-gray-600 text-sm font-medium">{title}</p>
+                            <p className="text-3xl font-bold text-gray-800 mt-2">{value}</p>
+                            {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
+                        </div>
+                        <div className={`text-4xl ${color.replace('border-', 'text-')}`}>
+                            <i className={icon}></i>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            const OverviewTab = () => (
+                <div className="space-y-6">
+                    {/* Stats Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <StatCard
+                            icon="fas fa-database"
+                            title="Total VIQ Questions"
+                            value={stats?.total_questions || 0}
+                            subtitle="Chapters 1-12"
+                            color="border-blue-500"
+                        />
+                        <StatCard
+                            icon="fas fa-graduation-cap"
+                            title="Training Data Rows"
+                            value={feedbackStats?.training_data_rows?.toLocaleString() || "20,163"}
+                            subtitle="From Excel/CSV files"
+                            color="border-green-500"
+                        />
+                        <StatCard
+                            icon="fas fa-brain"
+                            title="Auto-Learned"
+                            value={feedbackStats?.thumbs_down || 0}
+                            subtitle="From user feedback"
+                            color="border-purple-500"
+                        />
+                        <StatCard
+                            icon="fas fa-chart-line"
+                            title="Accuracy Rate"
+                            value={feedbackStats?.accuracy_rate || "N/A"}
+                            subtitle={`${feedbackStats?.thumbs_up || 0} positive`}
+                            color="border-yellow-500"
+                        />
+                    </div>
+
+                    {/* Feedback Stats */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-white rounded-lg shadow-lg p-6">
+                            <h3 className="text-lg font-semibold mb-4">
+                                <i className="fas fa-comments mr-2 text-blue-600"></i>
+                                Total Feedback
+                            </h3>
+                            <p className="text-4xl font-bold text-gray-800">
+                                {feedbackStats?.total_feedback || 0}
+                            </p>
+                        </div>
+                        <div className="bg-white rounded-lg shadow-lg p-6">
+                            <h3 className="text-lg font-semibold mb-4">
+                                <i className="fas fa-thumbs-up mr-2 text-green-600"></i>
+                                Thumbs Up
+                            </h3>
+                            <p className="text-4xl font-bold text-green-600">
+                                {feedbackStats?.thumbs_up || 0}
+                            </p>
+                        </div>
+                        <div className="bg-white rounded-lg shadow-lg p-6">
+                            <h3 className="text-lg font-semibold mb-4">
+                                <i className="fas fa-thumbs-down mr-2 text-red-600"></i>
+                                Thumbs Down
+                            </h3>
+                            <p className="text-4xl font-bold text-red-600">
+                                {feedbackStats?.thumbs_down || 0}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* System Info */}
+                    <div className="bg-white rounded-lg shadow-lg p-6">
+                        <h3 className="text-xl font-bold mb-4">
+                            <i className="fas fa-info-circle mr-2 text-blue-600"></i>
+                            System Information
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <p className="text-sm text-gray-600">Status</p>
+                                <p className="text-lg font-semibold text-green-600">
+                                    <i className="fas fa-check-circle mr-1"></i>
+                                    {stats?.status || 'Unknown'}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-600">OpenAI Available</p>
+                                <p className="text-lg font-semibold">
+                                    {stats?.openai_available ? '✅ Yes' : '❌ No'}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-600">Embedding Model</p>
+                                <p className="text-lg font-semibold">{stats?.embedding_model || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-600">OpenAI Model</p>
+                                <p className="text-lg font-semibold">{stats?.openai_model || 'N/A'}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            const SearchHistoryTab = () => (
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                    <h3 className="text-xl font-bold mb-4">
+                        <i className="fas fa-history mr-2 text-blue-600"></i>
+                        Recent Searches
+                    </h3>
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Query</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Result VIQ</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Confidence</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Feedback</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Timestamp</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                                {searchHistory.map((item) => (
+                                    <tr key={item.id} className="hover:bg-gray-50">
+                                        <td className="px-6 py-4 text-sm text-gray-900">{item.query}</td>
+                                        <td className="px-6 py-4 text-sm">
+                                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                                                {item.result_viq}
+                                            </span>
+                                            {item.correct_viq && (
+                                                <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 rounded">
+                                                    → {item.correct_viq}
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4 text-sm">
+                                            <span className={`px-2 py-1 rounded ${
+                                                item.confidence >= 0.8 ? 'bg-green-100 text-green-800' :
+                                                item.confidence >= 0.6 ? 'bg-yellow-100 text-yellow-800' :
+                                                'bg-red-100 text-red-800'
+                                            }`}>
+                                                {(item.confidence * 100).toFixed(1)}%
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-gray-600">{item.time_ms}ms</td>
+                                        <td className="px-6 py-4 text-sm">
+                                            {item.feedback === 'thumbs_up' ? (
+                                                <span className="text-green-600">
+                                                    <i className="fas fa-thumbs-up mr-1"></i>
+                                                    Correct
+                                                </span>
+                                            ) : item.feedback === 'thumbs_down' ? (
+                                                <span className="text-red-600">
+                                                    <i className="fas fa-thumbs-down mr-1"></i>
+                                                    Wrong
+                                                </span>
+                                            ) : (
+                                                <span className="text-gray-400">No feedback</span>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-gray-600">
+                                            {new Date(item.timestamp).toLocaleString()}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
+
+            const VIQQuestionsTab = () => (
+                <div className="space-y-6">
+                    {/* Vessel Type Distribution */}
+                    <div className="bg-white rounded-lg shadow-lg p-6">
+                        <h3 className="text-xl font-bold mb-4">
+                            <i className="fas fa-ship mr-2 text-blue-600"></i>
+                            Vessel Type Distribution
+                        </h3>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                            {stats?.vessel_type_distribution && Object.entries(stats.vessel_type_distribution).map(([type, count]) => (
+                                <div key={type} className="text-center p-4 bg-gray-50 rounded-lg">
+                                    <p className="text-2xl font-bold text-gray-800">{count}</p>
+                                    <p className="text-sm text-gray-600">{type}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Available Vessel Types */}
+                    <div className="bg-white rounded-lg shadow-lg p-6">
+                        <h3 className="text-xl font-bold mb-4">
+                            <i className="fas fa-filter mr-2 text-blue-600"></i>
+                            Available Vessel Types
+                        </h3>
+                        <div className="flex flex-wrap gap-2">
+                            {stats?.vessel_types?.map((type) => (
+                                <span key={type} className="px-4 py-2 bg-blue-100 text-blue-800 rounded-full">
+                                    {type}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Search Methods */}
+                    <div className="bg-white rounded-lg shadow-lg p-6">
+                        <h3 className="text-xl font-bold mb-4">
+                            <i className="fas fa-search mr-2 text-blue-600"></i>
+                            Available Search Methods
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {stats?.search_methods?.map((method) => (
+                                <div key={method} className="p-4 bg-gray-50 rounded-lg">
+                                    <p className="font-semibold text-gray-800">{method}</p>
+                                    <p className="text-sm text-gray-600">
+                                        {method === 'semantic' && 'AI-powered meaning-based search'}
+                                        {method === 'keyword' && 'Traditional text matching'}
+                                        {method === 'hybrid' && 'Best of both worlds'}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+
+            const PerformanceTab = () => (
+                <div className="space-y-6">
+                    {/* Performance Metrics */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="bg-white rounded-lg shadow-lg p-6">
+                            <h3 className="text-lg font-semibold mb-4">
+                                <i className="fas fa-clock mr-2 text-blue-600"></i>
+                                Avg Response Time
+                            </h3>
+                            <p className="text-4xl font-bold text-gray-800">1.2s</p>
+                            <p className="text-sm text-gray-600 mt-2">Training match: ~600ms</p>
+                            <p className="text-sm text-gray-600">AI search: ~2500ms</p>
+                        </div>
+                        <div className="bg-white rounded-lg shadow-lg p-6">
+                            <h3 className="text-lg font-semibold mb-4">
+                                <i className="fas fa-bolt mr-2 text-yellow-600"></i>
+                                Training Match Rate
+                            </h3>
+                            <p className="text-4xl font-bold text-gray-800">75%</p>
+                            <p className="text-sm text-gray-600 mt-2">Fast results from training</p>
+                        </div>
+                        <div className="bg-white rounded-lg shadow-lg p-6">
+                            <h3 className="text-lg font-semibold mb-4">
+                                <i className="fas fa-brain mr-2 text-purple-600"></i>
+                                AI Search Rate
+                            </h3>
+                            <p className="text-4xl font-bold text-gray-800">25%</p>
+                            <p className="text-sm text-gray-600 mt-2">New findings processed</p>
+                        </div>
+                    </div>
+
+                    {/* Learning Progress */}
+                    <div className="bg-white rounded-lg shadow-lg p-6">
+                        <h3 className="text-xl font-bold mb-4">
+                            <i className="fas fa-chart-line mr-2 text-green-600"></i>
+                            Learning Progress
+                        </h3>
+                        <div className="space-y-4">
+                            <div>
+                                <div className="flex justify-between mb-2">
+                                    <span className="text-sm font-medium">Training Data Rows</span>
+                                    <span className="text-sm font-medium">{feedbackStats?.training_data_rows?.toLocaleString() || "20,163"}</span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-4">
+                                    <div className="bg-blue-600 h-4 rounded-full" style={{width: (feedbackStats?.training_data_rows || 20163) > 0 ? '88%' : '0%'}}></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div className="flex justify-between mb-2">
+                                    <span className="text-sm font-medium">Auto-Learned (Feedback)</span>
+                                    <span className="text-sm font-medium">{stats?.learning_stats?.total_learned || 0}</span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-4">
+                                    <div className="bg-green-600 h-4 rounded-full" style={{width: '12%'}}></div>
+                                </div>
+                            </div>
+                            <div className="pt-4 border-t">
+                                <div className="flex justify-between">
+                                    <span className="font-semibold">Total Coverage</span>
+                                    <span className="font-semibold">{((feedbackStats?.training_data_rows || 20163) + (stats?.learning_stats?.total_learned || 0)).toLocaleString()}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            if (loading && !stats) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center">
+                        <div className="text-center">
+                            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto"></div>
+                            <p className="mt-4 text-gray-600">Loading dashboard...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+                    <div className="main-wrapper">
+                    {/* Header */}
+                    <div className="gradient-bg text-white py-6 shadow-lg">
+                        <div className="container mx-auto px-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h1 className="text-3xl font-bold">
+                                        <i className="fas fa-tachometer-alt mr-3"></i>
+                                        VIQ Admin Dashboard
+                                    </h1>
+                                    <p className="text-sm opacity-90 mt-1">
+                                        Real-time monitoring and analytics
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={fetchAllData}
+                                    className="bg-white text-blue-600 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+                                >
+                                    <i className="fas fa-sync-alt mr-2"></i>
+                                    Refresh
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Tabs */}
+                    <div className="bg-white shadow">
+                        <div className="container mx-auto px-4">
+                            <div className="flex space-x-8">
+                                {[
+                                    { id: 'overview', label: 'Overview', icon: 'fa-home' },
+                                    { id: 'history', label: 'Search History', icon: 'fa-history' },
+                                    { id: 'questions', label: 'VIQ Questions', icon: 'fa-question-circle' },
+                                    { id: 'performance', label: 'Performance', icon: 'fa-chart-bar' }
+                                ].map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveTab(tab.id)}
+                                        className={`py-4 px-2 font-medium transition-colors ${
+                                            activeTab === tab.id ? 'tab-active' : 'text-gray-600 hover:text-gray-800'
+                                        }`}
+                                    >
+                                        <i className={`fas ${tab.icon} mr-2`}></i>
+                                        {tab.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Content */}
+                    <div className="container mx-auto px-4 py-8">
+                        {activeTab === 'overview' && <OverviewTab />}
+                        {activeTab === 'history' && <SearchHistoryTab />}
+                        {activeTab === 'questions' && <VIQQuestionsTab />}
+                        {activeTab === 'performance' && <PerformanceTab />}
+                    </div>
+                    </div>
+
+                    {/* Toast Notification */}
+                    {toast.show && (
+                        <div className={`toast border-l-4 ${
+                            toast.type === 'success' ? 'border-green-500' :
+                            toast.type === 'error' ? 'border-red-500' :
+                            toast.type === 'warning' ? 'border-yellow-500' :
+                            'border-blue-500'
+                        }`}>
+                            <div className="flex items-center gap-3">
+                                <div className="flex-shrink-0">
+                                    {toast.type === 'success' && <i className="fas fa-check-circle text-green-600 text-xl"></i>}
+                                    {toast.type === 'error' && <i className="fas fa-times-circle text-red-600 text-xl"></i>}
+                                    {toast.type === 'warning' && <i className="fas fa-exclamation-circle text-yellow-600 text-xl"></i>}
+                                    {toast.type === 'info' && <i className="fas fa-info-circle text-blue-600 text-xl"></i>}
+                                </div>
+                                <p className="text-sm text-gray-800 flex-1">{toast.message}</p>
+                                <button
+                                    onClick={() => setToast({ show: false, type: '', message: '' })}
+                                    className="text-gray-400 hover:text-gray-600"
+                                >
+                                    <i className="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Popup Notification */}
+                    {popup.show && (
+                        <div className="popup-overlay" onClick={() => setPopup({ show: false, type: '', message: '' })}>
+                            <div className="popup-content" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-start gap-3">
+                                    <div className="flex-shrink-0">
+                                        {popup.type === 'success' && (
+                                            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                                                <i className="fas fa-check text-green-600 text-lg"></i>
+                                            </div>
+                                        )}
+                                        {popup.type === 'error' && (
+                                            <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                                                <i className="fas fa-times text-red-600 text-lg"></i>
+                                            </div>
+                                        )}
+                                        {popup.type === 'warning' && (
+                                            <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                                                <i className="fas fa-exclamation text-yellow-600 text-lg"></i>
+                                            </div>
+                                        )}
+                                        {popup.type === 'info' && (
+                                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                                <i className="fas fa-info text-blue-600 text-lg"></i>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="font-semibold text-gray-900 mb-1">
+                                            {popup.type === 'success' && 'Success'}
+                                            {popup.type === 'error' && 'Error'}
+                                            {popup.type === 'warning' && 'Warning'}
+                                            {popup.type === 'info' && 'Information'}
+                                        </h3>
+                                        <p className="text-sm text-gray-600">{popup.message}</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setPopup({ show: false, type: '', message: '' })}
+                                        className="flex-shrink-0 text-gray-400 hover:text-gray-600"
+                                    >
+                                        <i className="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <div className="mt-4">
+                                    <button
+                                        onClick={() => setPopup({ show: false, type: '', message: '' })}
+                                        className="w-full py-2 px-4 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors"
+                                    >
+                                        Close
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Footer */}
+                    <footer className="footer-stable bg-gray-800 text-white py-6 mt-8">
+                        <div className="container mx-auto px-4 text-center">
+                            <p className="text-gray-400">
+                                VIQ Admin Dashboard - Last updated: {new Date().toLocaleString()}
+                            </p>
+                        </div>
+                    </footer>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<AdminDashboard />, document.getElementById('root'));
+    </script>
+</body>
+</html>

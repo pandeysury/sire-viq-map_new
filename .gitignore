@@ -1,0 +1,290 @@
+# =============================================================================
+# VIQ RAG System - Git Ignore File
+# =============================================================================
+
+# Environment Variables & Secrets
+# ================================
+.env
+.env.*
+!.env.example
+!.env.template
+*.key
+*.pem
+secrets/
+config/secrets/
+
+# Python
+# =======
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+# ====================
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+.env/
+virtualenv/
+.virtualenv/
+
+# IDE & Editor Files
+# ==================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.sublime-project
+*.sublime-workspace
+
+# Logs & Debugging
+# =================
+*.log
+logs/
+*.log.*
+debug.log
+error.log
+access.log
+app.log
+viq_rag.log
+
+# Data & Vector Store
+# ===================
+backend/data/vectordb/
+backend/data/pdfs/*.pdf
+backend/data/documents/*.pdf
+backend/data/training/*.xlsx
+backend/data/training/*.xls
+backend/data/training/*.csv
+backend/data/cache/
+*.sqlite3
+*.db
+*.sqlite
+chroma.sqlite3
+
+# Temporary Files
+# ===============
+*.tmp
+*.temp
+.tmp/
+.temp/
+tmp/
+temp/
+
+# OS Generated Files
+# ==================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Docker
+# ======
+.dockerignore
+docker-compose.override.yml
+.docker/
+
+# Node.js (if any frontend dependencies)
+# ======================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+package-lock.json
+yarn.lock
+
+# Testing
+# =======
+.coverage
+.pytest_cache/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+htmlcov/
+.cache
+nosetests.xml
+coverage/
+
+# Jupyter Notebooks
+# ==================
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# Machine Learning Models
+# ========================
+*.pkl
+*.pickle
+*.joblib
+*.model
+models/
+checkpoints/
+
+# Backup Files
+# ============
+*.bak
+*.backup
+*.old
+*~
+
+# Compiled Files
+# ==============
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+
+# Archives
+# ========
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# Large Files & Media
+# ===================
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+*.mp3
+*.wav
+*.flac
+*.aac
+*.ogg
+*.wma
+
+# Documentation Build
+# ===================
+docs/_build/
+site/
+.mkdocs/
+
+# Local Configuration
+# ===================
+local_settings.py
+local_config.py
+config_local.py
+settings_local.py
+
+# SSL Certificates
+# ================
+*.crt
+*.cert
+*.ca-bundle
+*.p7b
+*.p7s
+*.pfx
+
+# Monitoring & Metrics
+# ====================
+.prometheus/
+grafana/
+metrics/
+
+# Deployment
+# ==========
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# Custom Project Specific
+# ========================
+# Add any project-specific files here
+backend/data/processed/
+backend/data/raw/
+backend/data/exports/
+*.xlsx
+*.xls
+!**/SAMPLE_TEMPLATE.csv
+
+# Documentation Files (Keep only essential)
+# =========================================
+# Exclude guide/documentation .md files
+AUTO_LEARNING_GUIDE.md
+ADMIN_DASHBOARD_GUIDE.md
+FEEDBACK_SYSTEM_GUIDE.md
+SEARCH_FLOW_EXPLAINED.md
+PRODUCTION_DEPLOYMENT.md
+FRONTEND_GUIDE.md
+
+# Keep only main README
+!README.md
+
+# Ignore all markdown files in data directories
+backend/data/**/*.md
+!backend/data/training/README.md
+
+# Testing Files (Keep only essential)
+# ===================================
+# Development/debug scripts
+simple_main.py
+correct_extraction.py
+fix_extraction.py
+data_processor.py
+train_from_excel.py
+serve_frontend.py
+test_training.py
+debug_training.py
+
+# Keep only main test file
+!backend/test_system.py
+
+# Performance & Profiling
+# ========================
+*.prof
+*.profile
+.profiling/
+
+# Security Scans
+# ==============
+.bandit
+.safety
+security-report.*

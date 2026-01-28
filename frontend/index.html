@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIQ AI - Ship Audit Finding Matcher</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; }
+        body { display: flex; flex-direction: column; }
+        #root { flex: 1 0 auto; display: flex; flex-direction: column; }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+        }
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .main-content { flex: 1 0 auto; }
+        .footer { flex-shrink: 0; }
+        
+        @media (max-width: 768px) {
+            .text-4xl { font-size: 1.75rem; }
+            .text-xl { font-size: 1rem; }
+            .py-8 { padding-top: 1.5rem; padding-bottom: 1.5rem; }
+            .px-6 { padding-left: 1rem; padding-right: 1rem; }
+        }
+        
+        @media (max-width: 640px) {
+            .flex-gap-4 { flex-direction: column; }
+            .stats-inline { display: block !important; }
+            .stats-inline span { display: block; margin: 0.25rem 0; }
+        }
+        
+        .popup-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            animation: fadeIn 0.2s ease;
+        }
+        
+        .popup-content {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            z-index: 9999;
+            animation: slideInRight 0.3s ease;
+            max-width: 400px;
+        }
+        
+        @keyframes slideInRight {
+            from { transform: translateX(400px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes slideOutRight {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(400px); opacity: 0; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const API_BASE_URL = 'http://localhost:8000';
+
+        function App() {
+            const [query, setQuery] = useState('');
+            const [vesselType, setVesselType] = useState('All');
+            const [vesselTypes, setVesselTypes] = useState(['All']);
+            const [results, setResults] = useState([]);
+            const [loading, setLoading] = useState(false);
+            const [stats, setStats] = useState(null);
+            const [error, setError] = useState('');
+            const [feedbackStats, setFeedbackStats] = useState(null);
+            const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+            const [feedbackData, setFeedbackData] = useState(null);
+            const [popup, setPopup] = useState({ show: false, type: '', message: '' });
+            const [toast, setToast] = useState({ show: false, type: '', message: '' });
+            const [searchingButton, setSearchingButton] = useState(null);
+
+            useEffect(() => {
+                if (toast.show) {
+                    const timer = setTimeout(() => {
+                        setToast({ show: false, type: '', message: '' });
+                    }, 5000);
+                    return () => clearTimeout(timer);
+                }
+            }, [toast.show]);
+
+            useEffect(() => {
+                fetchVesselTypes();
+                fetchStats();
+                fetchFeedbackStats();
+            }, []);
+
+            const fetchVesselTypes = async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/v1/vessel-types`);
+                    const data = await response.json();
+                    setVesselTypes(data.vessel_types || ['All']);
+                } catch (err) {
+                    console.error('Error fetching vessel types:', err);
+                    setToast({ show: true, type: 'error', message: 'Failed to load vessel types' });
+                }
+            };
+
+            const fetchStats = async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/v1/stats`);
+                    const data = await response.json();
+                    setStats(data);
+                } catch (err) {
+                    console.error('Error fetching stats:', err);
+                    setToast({ show: true, type: 'error', message: 'Failed to load statistics' });
+                }
+            };
+
+            const fetchFeedbackStats = async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/v1/feedback/stats`);
+                    const data = await response.json();
+                    setFeedbackStats(data.feedback_stats);
+                } catch (err) {
+                    console.error('Error fetching feedback stats:', err);
+                    setToast({ show: true, type: 'error', message: 'Failed to load feedback stats' });
+                }
+            };
+
+            const handleSearch = async (useAI = false) => {
+                if (!query.trim()) {
+                    setError('Please enter an audit finding');
+                    return;
+                }
+
+                setLoading(true);
+                setSearchingButton(useAI ? 'ai' : 'quick');
+                setError('');
+                setResults([]);
+
+                try {
+                    const endpoint = useAI ? '/api/v1/analyze-finding' : '/api/v1/search';
+                    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            query: query,
+                            vessel_type: vesselType,
+                            top_k: useAI ? 10 : 5
+                        }),
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    console.log('API Response:', data);
+                    console.log('Total matches:', data.matches?.length);
+                    setResults(data.matches || []);
+                } catch (err) {
+                    setError(`Error: ${err.message}`);
+                    console.error('Search error:', err);
+                } finally {
+                    setLoading(false);
+                    setSearchingButton(null);
+                }
+            };
+
+            const getScoreColor = (score) => {
+                if (score >= 0.8) return 'text-green-600 bg-green-100';
+                if (score >= 0.6) return 'text-yellow-600 bg-yellow-100';
+                return 'text-red-600 bg-red-100';
+            };
+
+            const formatScore = (score) => {
+                return `${(score * 100).toFixed(1)}%`;
+            };
+
+            const handleFeedback = async (match, feedbackType, correctViq = null) => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/v1/feedback`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            finding: query,
+                            suggested_viq: match.viq_number,
+                            feedback_type: feedbackType,
+                            correct_viq: correctViq,
+                            confidence_score: match.confidence_score
+                        })
+                    });
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        setPopup({ show: true, type: 'success', message: data.message });
+                        fetchFeedbackStats();
+                        if (data.learned) {
+                            setTimeout(() => handleSearch(false), 1000);
+                        }
+                    }
+                } catch (err) {
+                    setPopup({ show: true, type: 'error', message: 'Failed to submit feedback: ' + err.message });
+                }
+            };
+
+            const handleThumbsDown = (match) => {
+                setFeedbackData(match);
+                setShowFeedbackModal(true);
+            };
+
+            const submitCorrection = async () => {
+                const correctViq = document.getElementById('correctViq').value;
+                if (!correctViq) {
+                    setPopup({ show: true, type: 'warning', message: 'Please enter the correct VIQ number' });
+                    return;
+                }
+                await handleFeedback(feedbackData, 'thumbs_down', correctViq);
+                setShowFeedbackModal(false);
+                setFeedbackData(null);
+            };
+
+            return (
+                <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+                    <div className="main-content">
+                        {/* Header */}
+                        <div className="gradient-bg text-white py-6">
+                            <div className="container mx-auto px-4">
+                                <div className="text-center">
+                                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-2">
+                                        <i className="fas fa-ship mr-2 md:mr-3"></i>
+                                         Sail VIQ AI 
+                                    </h1>
+                                    <p className="text-base md:text-xl opacity-90 mb-3">
+                                        VIQ SIRE 2.0 AI Assistant
+                                    </p>
+                                    {stats && (
+                                        <div className="mt-3 text-xs md:text-sm opacity-80 stats-inline">
+                                            <span className="mr-2 md:mr-4">
+                                                <i className="fas fa-database mr-1"></i>
+                                                {stats.total_questions} Questions
+                                            </span>
+                                            <span className="mr-2 md:mr-4">
+                                                <i className="fas fa-cog mr-1"></i>
+                                                {stats.status}
+                                            </span>
+                                            <span className="mr-2 md:mr-4">
+                                                <i className="fas fa-brain mr-1"></i>
+                                                AI-Powered
+                                            </span>
+                                            {feedbackStats && (
+                                                <span>
+                                                    <i className="fas fa-thumbs-up mr-1"></i>
+                                                    {feedbackStats.accuracy_rate} Accuracy
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Main Content */}
+                        <div className="container mx-auto px-4 py-6 md:py-8">
+                            {/* Search Section */}
+                            <div className="bg-white rounded-lg shadow-lg p-4 md:p-6 mb-6 md:mb-8">
+                                <div className="mb-4 md:mb-6">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        <i className="fas fa-search mr-2"></i>
+                                        Enter Audit Finding
+                                    </label>
+                                    <textarea
+                                        value={query}
+                                        onChange={(e) => setQuery(e.target.value)}
+                                        placeholder="Enter audit observation to identify potentially relevant SIRE 2.0 references"
+                                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
+                                        rows="3"
+                                    />
+                                </div>
+
+                                <div className="mb-4 md:mb-6">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        <i className="fas fa-filter mr-2"></i>
+                                        Vessel Type Filter
+                                    </label>
+                                    <select
+                                        value={vesselType}
+                                        onChange={(e) => setVesselType(e.target.value)}
+                                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
+                                    >
+                                        {vesselTypes.map(type => (
+                                            <option key={type} value={type}>{type}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
+                                    <button
+                                        onClick={() => handleSearch(false)}
+                                        disabled={loading}
+                                        className="flex-1 bg-blue-600 text-white py-3 px-4 md:px-6 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
+                                    >
+                                        {searchingButton === 'quick' ? (
+                                            <span className="flex items-center justify-center">
+                                                <div className="loading-spinner mr-2"></div>
+                                                Searching...
+                                            </span>
+                                        ) : (
+                                            <span>
+                                                <i className="fas fa-search mr-2"></i>
+                                                Quick Search
+                                            </span>
+                                        )}
+                                    </button>
+                                    <button
+                                        onClick={() => handleSearch(true)}
+                                        disabled={loading}
+                                        className="flex-1 bg-purple-600 text-white py-3 px-4 md:px-6 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
+                                    >
+                                        {searchingButton === 'ai' ? (
+                                            <span className="flex items-center justify-center">
+                                                <div className="loading-spinner mr-2"></div>
+                                                Analyzing...
+                                            </span>
+                                        ) : (
+                                            <span>
+                                                <i className="fas fa-brain mr-2"></i>
+                                                AI Analysis
+                                            </span>
+                                        )}
+                                    </button>
+                                </div>
+
+                                {error && (
+                                    <div className="mt-4 p-3 md:p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm md:text-base">
+                                        <i className="fas fa-exclamation-triangle mr-2"></i>
+                                        {error}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Results Section */}
+                            {results.length > 0 && (() => {
+                                console.log('Rendering results:', results.length);
+                                const bestMatches = results.filter(r => r.similarity_score >= 0.6);
+                                const otherMatches = results.filter(r => r.similarity_score < 0.6);
+                                console.log('Best matches:', bestMatches.length, 'Other matches:', otherMatches.length);
+                                
+                                return (
+                                <div className="space-y-4 md:space-y-6">
+                                    {/* Best Matches */}
+                                    {bestMatches.length > 0 && (
+                                        <>
+                                            <div className="flex items-center gap-2">
+                                                <i className="fas fa-star text-yellow-500 text-xl"></i>
+                                                <h2 className="text-xl md:text-2xl font-bold text-gray-800">
+                                                    Best Match{bestMatches.length > 1 ? 'es' : ''}
+                                                </h2>
+                                                <span className="text-sm text-gray-500">({bestMatches.length})</span>
+                                            </div>
+                                            
+                                            {bestMatches.map((match, index) => (
+                                        <div key={index} className="bg-white rounded-lg shadow-lg p-4 md:p-6 card-hover">
+                                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-4 gap-2">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <span className="bg-blue-100 text-blue-800 text-xs md:text-sm font-medium px-3 py-1 rounded-full">
+                                                        VIQ {match.viq_number}
+                                                    </span>
+                                                    <span className={`text-xs md:text-sm font-medium px-2 py-1 rounded-full ${getScoreColor(match.similarity_score)}`}>
+                                                        {formatScore(match.similarity_score)} Match
+                                                    </span>
+                                                </div>
+                                                <div className="text-xs md:text-sm text-gray-500">
+                                                    <i className="fas fa-ship mr-1"></i>
+                                                    {match.vessel_types}
+                                                </div>
+                                            </div>
+                                            
+                                            <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-3">
+                                                {match.question}
+                                            </h3>
+                                            
+                                            {match.context && (() => {
+                                                const isAIAnalysis = match.context.startsWith('AI Analysis:');
+                                                const parts = isAIAnalysis ? match.context.split('\n\nGuidance:') : [match.context];
+                                                const aiText = isAIAnalysis ? parts[0].replace('AI Analysis:', '').trim() : null;
+                                                const guidanceText = isAIAnalysis && parts[1] ? parts[1].trim() : (!isAIAnalysis ? match.context : null);
+                                                
+                                                return (
+                                                    <>
+                                                        {aiText && (
+                                                            <div className="bg-purple-50 border-l-4 border-purple-500 p-3 md:p-4 rounded-lg mb-4">
+                                                                <h4 className="font-semibold text-purple-800 mb-2 text-sm md:text-base flex items-center">
+                                                                    <i className="fas fa-brain mr-2"></i>
+                                                                    AI Analysis
+                                                                </h4>
+                                                                <p className="text-xs md:text-sm text-gray-700 leading-relaxed">
+                                                                    {aiText}
+                                                                </p>
+                                                            </div>
+                                                        )}
+                                                        {guidanceText && (
+                                                            <div className="bg-gray-50 p-3 md:p-4 rounded-lg mb-4">
+                                                                <h4 className="font-medium text-gray-700 mb-2 text-sm md:text-base">
+                                                                    <i className="fas fa-info-circle mr-2"></i>
+                                                                    Additional Context
+                                                                </h4>
+                                                                <p className="text-xs md:text-sm text-gray-600 whitespace-pre-wrap">
+                                                                    {guidanceText}
+                                                                </p>
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                );
+                                            })()}
+                                            
+                                            {/* Feedback Buttons */}
+                                            <div className="mt-4 pt-4 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                                <span className="text-xs md:text-sm text-gray-600">
+                                                    <i className="fas fa-question-circle mr-1"></i>
+                                                    Is this result helpful?
+                                                </span>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => handleFeedback(match, 'thumbs_up')}
+                                                        className="flex-1 sm:flex-none px-3 md:px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-xs md:text-sm"
+                                                        title="This result is correct"
+                                                    >
+                                                        <i className="fas fa-thumbs-up mr-1 md:mr-2"></i>
+                                                        Correct
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleThumbsDown(match)}
+                                                        className="flex-1 sm:flex-none px-3 md:px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-xs md:text-sm"
+                                                        title="This result is wrong"
+                                                    >
+                                                        <i className="fas fa-thumbs-down mr-1 md:mr-2"></i>
+                                                        Wrong
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                            ))}
+                                        </>
+                                    )}
+                                    
+                                    {/* Other Possible Matches */}
+                                    {otherMatches.length > 0 && (
+                                        <>
+                                            <div className="flex items-center gap-2 mt-8">
+                                                <i className="fas fa-lightbulb text-blue-500 text-xl"></i>
+                                                <h2 className="text-xl md:text-2xl font-bold text-gray-800">
+                                                    Other Possible Matches
+                                                </h2>
+                                                <span className="text-sm text-gray-500">({otherMatches.length})</span>
+                                            </div>
+                                            <p className="text-sm text-gray-600 mb-4">
+                                                <i className="fas fa-info-circle mr-1"></i>
+                                                These results have lower confidence but may still be relevant
+                                            </p>
+                                            
+                                            {otherMatches.map((match, index) => (
+                                                <div key={`other-${index}`} className="bg-white rounded-lg shadow-lg p-4 md:p-6 card-hover border-l-4 border-yellow-400">
+                                                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-4 gap-2">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <span className="bg-blue-100 text-blue-800 text-xs md:text-sm font-medium px-3 py-1 rounded-full">
+                                                                VIQ {match.viq_number}
+                                                            </span>
+                                                            <span className={`text-xs md:text-sm font-medium px-2 py-1 rounded-full ${getScoreColor(match.similarity_score)}`}>
+                                                                {formatScore(match.similarity_score)} Match
+                                                            </span>
+                                                        </div>
+                                                        <div className="text-xs md:text-sm text-gray-500">
+                                                            <i className="fas fa-ship mr-1"></i>
+                                                            {match.vessel_types}
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-3">
+                                                        {match.question}
+                                                    </h3>
+                                                    
+                                                    {match.context && (() => {
+                                                        const isAIAnalysis = match.context.startsWith('AI Analysis:');
+                                                        const parts = isAIAnalysis ? match.context.split('\n\nGuidance:') : [match.context];
+                                                        const aiText = isAIAnalysis ? parts[0].replace('AI Analysis:', '').trim() : null;
+                                                        const guidanceText = isAIAnalysis && parts[1] ? parts[1].trim() : (!isAIAnalysis ? match.context : null);
+                                                        
+                                                        return (
+                                                            <>
+                                                                {aiText && (
+                                                                    <div className="bg-purple-50 border-l-4 border-purple-500 p-3 md:p-4 rounded-lg mb-4">
+                                                                        <h4 className="font-semibold text-purple-800 mb-2 text-sm md:text-base flex items-center">
+                                                                            <i className="fas fa-brain mr-2"></i>
+                                                                            AI Analysis
+                                                                        </h4>
+                                                                        <p className="text-xs md:text-sm text-gray-700 leading-relaxed">
+                                                                            {aiText}
+                                                                        </p>
+                                                                    </div>
+                                                                )}
+                                                                {guidanceText && (
+                                                                    <div className="bg-gray-50 p-3 md:p-4 rounded-lg mb-4">
+                                                                        <h4 className="font-medium text-gray-700 mb-2 text-sm md:text-base">
+                                                                            <i className="fas fa-info-circle mr-2"></i>
+                                                                            Additional Context
+                                                                        </h4>
+                                                                        <p className="text-xs md:text-sm text-gray-600 whitespace-pre-wrap">
+                                                                            {guidanceText}
+                                                                        </p>
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        );
+                                                    })()}
+                                                    
+                                                    <div className="mt-4 pt-4 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                                        <span className="text-xs md:text-sm text-gray-600">
+                                                            <i className="fas fa-question-circle mr-1"></i>
+                                                            Is this result helpful?
+                                                        </span>
+                                                        <div className="flex gap-2">
+                                                            <button
+                                                                onClick={() => handleFeedback(match, 'thumbs_up')}
+                                                                className="flex-1 sm:flex-none px-3 md:px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-xs md:text-sm"
+                                                                title="This result is correct"
+                                                            >
+                                                                <i className="fas fa-thumbs-up mr-1 md:mr-2"></i>
+                                                                Correct
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleThumbsDown(match)}
+                                                                className="flex-1 sm:flex-none px-3 md:px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-xs md:text-sm"
+                                                                title="This result is wrong"
+                                                            >
+                                                                <i className="fas fa-thumbs-down mr-1 md:mr-2"></i>
+                                                                Wrong
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </>
+                                    )}
+                                </div>
+                                );
+                            })()}
+
+                            {/* No Results */}
+                            {!loading && results.length === 0 && query && (
+                                <div className="text-center py-12">
+                                    <i className="fas fa-search text-gray-400 text-4xl md:text-6xl mb-4"></i>
+                                    <h3 className="text-lg md:text-xl font-medium text-gray-600 mb-2">No matches found</h3>
+                                    <p className="text-sm md:text-base text-gray-500">Try adjusting your search terms or vessel type filter</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Toast Notification */}
+                    {toast.show && (
+                        <div className={`toast border-l-4 ${
+                            toast.type === 'success' ? 'border-green-500' :
+                            toast.type === 'error' ? 'border-red-500' :
+                            toast.type === 'warning' ? 'border-yellow-500' :
+                            'border-blue-500'
+                        }`}>
+                            <div className="flex items-center gap-3">
+                                <div className="flex-shrink-0">
+                                    {toast.type === 'success' && <i className="fas fa-check-circle text-green-600 text-xl"></i>}
+                                    {toast.type === 'error' && <i className="fas fa-times-circle text-red-600 text-xl"></i>}
+                                    {toast.type === 'warning' && <i className="fas fa-exclamation-circle text-yellow-600 text-xl"></i>}
+                                    {toast.type === 'info' && <i className="fas fa-info-circle text-blue-600 text-xl"></i>}
+                                </div>
+                                <p className="text-sm text-gray-800 flex-1">{toast.message}</p>
+                                <button
+                                    onClick={() => setToast({ show: false, type: '', message: '' })}
+                                    className="text-gray-400 hover:text-gray-600"
+                                >
+                                    <i className="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Popup Notification */}
+                    {popup.show && (
+                        <div className="popup-overlay" onClick={() => setPopup({ show: false, type: '', message: '' })}>
+                            <div className="popup-content" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-start gap-3">
+                                    <div className="flex-shrink-0">
+                                        {popup.type === 'success' && (
+                                            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                                                <i className="fas fa-check text-green-600 text-lg"></i>
+                                            </div>
+                                        )}
+                                        {popup.type === 'error' && (
+                                            <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                                                <i className="fas fa-times text-red-600 text-lg"></i>
+                                            </div>
+                                        )}
+                                        {popup.type === 'warning' && (
+                                            <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                                                <i className="fas fa-exclamation text-yellow-600 text-lg"></i>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="font-semibold text-gray-900 mb-1">
+                                            {popup.type === 'success' && 'Success'}
+                                            {popup.type === 'error' && 'Error'}
+                                            {popup.type === 'warning' && 'Warning'}
+                                        </h3>
+                                        <p className="text-sm text-gray-600">{popup.message}</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setPopup({ show: false, type: '', message: '' })}
+                                        className="flex-shrink-0 text-gray-400 hover:text-gray-600"
+                                    >
+                                        <i className="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <div className="mt-4">
+                                    <button
+                                        onClick={() => setPopup({ show: false, type: '', message: '' })}
+                                        className="w-full py-2 px-4 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors"
+                                    >
+                                        Close
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Feedback Modal */}
+                    {showFeedbackModal && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                            <div className="bg-white rounded-lg p-4 md:p-6 max-w-md w-full">
+                                <h3 className="text-lg md:text-xl font-bold mb-4">
+                                    <i className="fas fa-edit mr-2"></i>
+                                    Provide Correct VIQ Number
+                                </h3>
+                                <p className="text-sm md:text-base text-gray-600 mb-4">
+                                    Wrong VIQ: <strong>{feedbackData?.viq_number}</strong>
+                                </p>
+                                <input
+                                    id="correctViq"
+                                    type="text"
+                                    placeholder="Enter correct VIQ (e.g., 5.2.1)"
+                                    className="w-full p-3 border border-gray-300 rounded-lg mb-4 text-sm md:text-base"
+                                />
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={submitCorrection}
+                                        className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 text-sm md:text-base"
+                                    >
+                                        Submit
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowFeedbackModal(false);
+                                            setFeedbackData(null);
+                                        }}
+                                        className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400 text-sm md:text-base"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Footer */}
+                    <footer className="footer bg-gradient-to-r from-gray-800 to-gray-900 text-white py-6 mt-8">
+                        <div className="container mx-auto px-4">
+                            <div className="text-center">
+                                <div className="flex flex-col md:flex-row justify-center items-center gap-4 mb-4">
+                                    <div className="flex items-center gap-2">
+                                        <i className="fas fa-ship text-2xl"></i>
+                                        <span className="text-lg font-bold">VIQ AI System</span>
+                                    </div>
+                                    <div className="hidden md:block text-gray-500">|</div>
+                                    <div className="flex gap-4 text-sm">
+                                        <span><i className="fas fa-brain mr-1"></i>AI-Powered</span>
+                                        <span><i className="fas fa-shield-alt mr-1"></i>Secure</span>
+                                        <span><i className="fas fa-bolt mr-1"></i>Fast</span>
+                                    </div>
+                                </div>
+                                <p className="text-xs md:text-sm text-gray-400 mb-2">
+                                    Powered by Safe-lane & Advanced AI Technology
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                    © 2024 VIQ AI Safe-lane. All rights reserved.
+                                </p>
+                            </div>
+                        </div>
+                    </footer>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
