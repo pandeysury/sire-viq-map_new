@@ -114,7 +114,7 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        const API_BASE_URL = 'http://localhost:8000';
+        const API_BASE_URL = window.location.origin.includes('localhost') ? 'http://localhost:8003' : '/viq-rag/api';
 
         function App() {
             const [query, setQuery] = useState('');
