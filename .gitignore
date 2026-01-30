@@ -1,9 +1,10 @@
 # =============================================================================
-# VIQ RAG System - Git Ignore File
+# VIQ RAG System - Clean .gitignore (Production Ready)
 # =============================================================================
 
+# -----------------------------------------------------------------------------
 # Environment Variables & Secrets
-# ================================
+# -----------------------------------------------------------------------------
 .env
 .env.*
 !.env.example
@@ -13,264 +14,151 @@
 secrets/
 config/secrets/
 
+# -----------------------------------------------------------------------------
 # Python
-# =======
+# -----------------------------------------------------------------------------
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
 .eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
 *.egg-info/
 .installed.cfg
-*.egg
 MANIFEST
 
+# -----------------------------------------------------------------------------
 # Virtual Environments
-# ====================
+# -----------------------------------------------------------------------------
 venv/
 env/
 ENV/
-env.bak/
-venv.bak/
 .venv/
-.env/
 virtualenv/
-.virtualenv/
 
-# IDE & Editor Files
-# ==================
+# -----------------------------------------------------------------------------
+# IDE & Editor
+# -----------------------------------------------------------------------------
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
-*.sublime-project
-*.sublime-workspace
 
-# Logs & Debugging
-# =================
+# -----------------------------------------------------------------------------
+# Logs
+# -----------------------------------------------------------------------------
 *.log
 logs/
-*.log.*
 debug.log
 error.log
 access.log
 app.log
 viq_rag.log
 
-# Data & Vector Store
-# ===================
-backend/data/vectordb/
-backend/data/pdfs/*.pdf
-backend/data/documents/*.pdf
-backend/data/training/*.xlsx
-backend/data/training/*.xls
-backend/data/training/*.csv
-backend/data/cache/
-*.sqlite3
+# -----------------------------------------------------------------------------
+# DATA & VECTOR DATABASE (IMPORTANT)
+# -----------------------------------------------------------------------------
+# Never commit runtime / generated data
+data/
+backend/data/
+*.bin
 *.db
 *.sqlite
+*.sqlite3
 chroma.sqlite3
+viq_system.db
 
+# -----------------------------------------------------------------------------
 # Temporary Files
-# ===============
+# -----------------------------------------------------------------------------
 *.tmp
 *.temp
-.tmp/
-.temp/
 tmp/
 temp/
 
-# OS Generated Files
-# ==================
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-desktop.ini
-
+# -----------------------------------------------------------------------------
 # Docker
-# ======
+# -----------------------------------------------------------------------------
 .dockerignore
 docker-compose.override.yml
 .docker/
 
-# Node.js (if any frontend dependencies)
-# ======================================
+# -----------------------------------------------------------------------------
+# Node / Frontend (if used)
+# -----------------------------------------------------------------------------
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.npm
-.yarn-integrity
 package-lock.json
 yarn.lock
 
-# Testing
-# =======
+# -----------------------------------------------------------------------------
+# Testing & Coverage
+# -----------------------------------------------------------------------------
 .coverage
 .pytest_cache/
 .tox/
 .nox/
 coverage.xml
-*.cover
-*.py,cover
-.hypothesis/
 htmlcov/
 .cache
-nosetests.xml
-coverage/
 
-# Jupyter Notebooks
-# ==================
-.ipynb_checkpoints
-*/.ipynb_checkpoints/*
+# -----------------------------------------------------------------------------
+# Jupyter
+# -----------------------------------------------------------------------------
+.ipynb_checkpoints/
 
-# Machine Learning Models
-# ========================
-
-# Backup Files
-# ============
-*.bak
-*.backup
-*.old
-*~
-
-# Compiled Files
-# ==============
-*.com
-*.class
-*.dll
-*.exe
-*.o
-*.so
-
-# Archives
-# ========
-*.7z
-*.dmg
-*.gz
-*.iso
-*.jar
-*.rar
-*.tar
+# -----------------------------------------------------------------------------
+# Archives & Large Media
+# -----------------------------------------------------------------------------
 *.zip
-
-# Large Files & Media
-# ===================
+*.tar
+*.gz
+*.rar
+*.7z
 *.mp4
 *.avi
 *.mov
-*.wmv
-*.flv
-*.webm
 *.mp3
 *.wav
-*.flac
-*.aac
-*.ogg
-*.wma
 
-# Documentation Build
-# ===================
-
-# Local Configuration
-# ===================
+# -----------------------------------------------------------------------------
+# Local Config Overrides
+# -----------------------------------------------------------------------------
 local_settings.py
 local_config.py
-config_local.py
 settings_local.py
 
-# SSL Certificates
-# ================
-*.crt
-*.cert
-*.ca-bundle
-*.p7b
-*.p7s
-*.pfx
+# -----------------------------------------------------------------------------
+# Security / Reports
+# -----------------------------------------------------------------------------
+.bandit
+.safety
+security-report.*
 
-# Monitoring & Metrics
-# ====================
-.prometheus/
-grafana/
-metrics/
-
-# Deployment
-# ==========
+# -----------------------------------------------------------------------------
+# Deployment / Infra
+# -----------------------------------------------------------------------------
 .terraform/
 *.tfstate
 *.tfstate.*
 .terraform.lock.hcl
 
-# Custom Project Specific
-# ========================
-# Add any project-specific files here
-backend/data/processed/
-backend/data/raw/
-backend/data/exports/
-*.xlsx
-*.xls
-!**/SAMPLE_TEMPLATE.csv
-
-# Documentation Files (Keep only essential)
-# =========================================
-# Exclude guide/documentation .md files
-AUTO_LEARNING_GUIDE.md
-ADMIN_DASHBOARD_GUIDE.md
-FEEDBACK_SYSTEM_GUIDE.md
-SEARCH_FLOW_EXPLAINED.md
-PRODUCTION_DEPLOYMENT.md
-FRONTEND_GUIDE.md
-
-# Keep only main README
+# -----------------------------------------------------------------------------
+# Documentation (Keep only main README)
+# -----------------------------------------------------------------------------
+*.md
 !README.md
 
-# Ignore all markdown files in data directories
-backend/data/**/*.md
-!backend/data/training/README.md
-
-# Testing Files (Keep only essential)
-# ===================================
-# Development/debug scripts
-
-test_training.py
-debug_training.py
-
-# Keep only main test file
-!backend/test_system.py
-
-# Performance & Profiling
-# ========================
-*.prof
-*.profile
-.profiling/
-
-# Security Scans
-# ==============
-.bandit
-.safety
-security-report.*
+# -----------------------------------------------------------------------------
+# Backup Files
+# -----------------------------------------------------------------------------
+*.bak
+*.backup
+*.old
