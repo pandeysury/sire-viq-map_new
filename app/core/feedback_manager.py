@@ -187,11 +187,15 @@ class FeedbackManager:
             # Count training data from Excel files
             training_data_count = self._count_training_data()
             
+            # Calculate success rate based on actual feedback (thumbs_up vs thumbs_down)
+            feedback_total = thumbs_up + thumbs_down
+            success_rate = (thumbs_up / feedback_total * 100) if feedback_total > 0 else 0
+            
             return {
                 "total_feedback": total,
                 "thumbs_up": thumbs_up,
                 "thumbs_down": thumbs_down,
-                "accuracy_rate": f"{(thumbs_up / total * 100):.1f}%" if total > 0 else "N/A",
+                "accuracy_rate": f"{success_rate:.1f}%" if feedback_total > 0 else "N/A",
                 "training_data_rows": training_data_count
             }
         except Exception as e:

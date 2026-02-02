@@ -556,6 +556,19 @@ async def get_dashboard_stats(db: Session = Depends(get_db)):
                 "uptime": "Running"
             }
         
+        # Real Feedback Analytics from database
+        all_feedback = db.query(UserFeedback).all()
+        feedback_counts = {}
+        for feedback in all_feedback:
+            feedback_counts[feedback.feedback_type] = feedback_counts.get(feedback.feedback_type, 0) + 1
+        
+        total_feedback = len(all_feedback)
+        positive_feedback = feedback_counts.get('thumbs_up', 0)
+        negative_feedback = feedback_counts.get('thumbs_down', 0)
+        corrections = feedback_counts.get('correction', 0)
+        
+        satisfaction = (positive_feedback / total_feedback * 100) if total_feedback > 0 else 0
+        
         # Real Search Analytics from database
         today = datetime.now().date()
         searches_today = db.query(SearchHistory).filter(
@@ -578,22 +591,9 @@ async def get_dashboard_stats(db: Session = Depends(get_db)):
             "total_searches_today": len(searches_today),
             "average_response_time": f"{avg_response_time}ms",
             "top_vessel_types": vessel_type_counts,
-            "search_success_rate": 100.0 if searches_today else 0.0,
+            "search_success_rate": round(satisfaction, 1) if total_feedback > 0 else 0.0,
             "most_searched_findings": [query for query, _ in most_searched]
         }
-        
-        # Real Feedback Analytics from database
-        all_feedback = db.query(UserFeedback).all()
-        feedback_counts = {}
-        for feedback in all_feedback:
-            feedback_counts[feedback.feedback_type] = feedback_counts.get(feedback.feedback_type, 0) + 1
-        
-        total_feedback = len(all_feedback)
-        positive_feedback = feedback_counts.get('thumbs_up', 0)
-        negative_feedback = feedback_counts.get('thumbs_down', 0)
-        corrections = feedback_counts.get('correction', 0)
-        
-        satisfaction = (positive_feedback / total_feedback * 100) if total_feedback > 0 else 0
         
         dashboard_data["feedback_analytics"] = {
             "total_feedback": total_feedback,
@@ -960,7 +960,7 @@ async def submit_feedback(request: Request, db: Session = Depends(get_db)):
                 logger.info(f"Added feedback to training: {finding[:50]}... -> VIQ {correct_viq}")
                 
                 feedback_type = data.get('feedback_type', 'correction')
-                message = "Feedback submitted and system learned from correction" if feedback_type != 'thumbs_up' else "Positive feedback confirmed - system will show 100% confidence next time"
+                message = "Feedback submitted and system learned from correction" if feedback_type != 'thumbs_up' else "System learned - it will give better results next time!"
                 
                 return {
                     "status": "success",

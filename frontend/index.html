@@ -248,15 +248,23 @@
                     });
                     const data = await response.json();
                     
-                    if (data.success) {
-                        setPopup({ show: true, type: 'success', message: data.message });
+                    if (data.status === 'success') {
+                        setToast({ 
+                            show: true, 
+                            type: 'success', 
+                            message: feedbackType === 'thumbs_up' ? 
+                                'Thank you! System learned - it will give better results next time!' : 
+                                data.message || 'Feedback submitted successfully!'
+                        });
                         fetchFeedbackStats();
                         if (data.learned) {
                             setTimeout(() => handleSearch(false), 1000);
                         }
+                    } else {
+                        setToast({ show: true, type: 'error', message: data.message || 'Failed to submit feedback' });
                     }
                 } catch (err) {
-                    setPopup({ show: true, type: 'error', message: 'Failed to submit feedback: ' + err.message });
+                    setToast({ show: true, type: 'error', message: 'Failed to submit feedback: ' + err.message });
                 }
             };
 
@@ -268,7 +276,7 @@
             const submitCorrection = async () => {
                 const correctViq = document.getElementById('correctViq').value;
                 if (!correctViq) {
-                    setPopup({ show: true, type: 'warning', message: 'Please enter the correct VIQ number' });
+                    setToast({ show: true, type: 'warning', message: 'Please enter the correct VIQ number' });
                     return;
                 }
                 await handleFeedback(feedbackData, 'thumbs_down', correctViq);
@@ -318,7 +326,7 @@
                                             {feedbackStats && (
                                                 <span>
                                                     <i className="fas fa-thumbs-up mr-1"></i>
-                                                    {feedbackStats.accuracy_rate} Accuracy
+                                                    {feedbackStats.user_satisfaction}% Success
                                                 </span>
                                             )}
                                         </div>
@@ -453,6 +461,21 @@
                                                 const aiText = isAIAnalysis ? parts[0].replace('AI Analysis:', '').trim() : null;
                                                 const guidanceText = isAIAnalysis && parts[1] ? parts[1].trim() : (!isAIAnalysis ? match.context : null);
                                                 
+                                                // Clean up HTML entities and formatting
+                                                const cleanText = (text) => {
+                                                    if (!text) return text;
+                                                    return text
+                                                        .replace(/&#39;/g, "'")
+                                                        .replace(/&quot;/g, '"')
+                                                        .replace(/&amp;/g, '&')
+                                                        .replace(/&lt;/g, '<')
+                                                        .replace(/&gt;/g, '>')
+                                                        .replace(/###\s*/g, '')
+                                                        .replace(/####\s*/g, '')
+                                                        .replace(/\*\*/g, '')
+                                                        .trim();
+                                                };
+                                                
                                                 return (
                                                     <>
                                                         {aiText && (
@@ -461,9 +484,9 @@
                                                                     <i className="fas fa-brain mr-2"></i>
                                                                     AI Analysis
                                                                 </h4>
-                                                                <p className="text-xs md:text-sm text-gray-700 leading-relaxed">
-                                                                    {aiText}
-                                                                </p>
+                                                                <div className="text-xs md:text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+                                                                    {cleanText(aiText)}
+                                                                </div>
                                                             </div>
                                                         )}
                                                         {guidanceText && (
@@ -472,9 +495,9 @@
                                                                     <i className="fas fa-info-circle mr-2"></i>
                                                                     Additional Context
                                                                 </h4>
-                                                                <p className="text-xs md:text-sm text-gray-600 whitespace-pre-wrap">
-                                                                    {guidanceText}
-                                                                </p>
+                                                                <div className="text-xs md:text-sm text-gray-600 whitespace-pre-line">
+                                                                    {cleanText(guidanceText)}
+                                                                </div>
                                                             </div>
                                                         )}
                                                     </>
@@ -553,6 +576,21 @@
                                                         const aiText = isAIAnalysis ? parts[0].replace('AI Analysis:', '').trim() : null;
                                                         const guidanceText = isAIAnalysis && parts[1] ? parts[1].trim() : (!isAIAnalysis ? match.context : null);
                                                         
+                                                        // Clean up HTML entities and formatting
+                                                        const cleanText = (text) => {
+                                                            if (!text) return text;
+                                                            return text
+                                                                .replace(/&#39;/g, "'")
+                                                                .replace(/&quot;/g, '"')
+                                                                .replace(/&amp;/g, '&')
+                                                                .replace(/&lt;/g, '<')
+                                                                .replace(/&gt;/g, '>')
+                                                                .replace(/###\s*/g, '')
+                                                                .replace(/####\s*/g, '')
+                                                                .replace(/\*\*/g, '')
+                                                                .trim();
+                                                        };
+                                                        
                                                         return (
                                                             <>
                                                                 {aiText && (
@@ -561,9 +599,9 @@
                                                                             <i className="fas fa-brain mr-2"></i>
                                                                             AI Analysis
                                                                         </h4>
-                                                                        <p className="text-xs md:text-sm text-gray-700 leading-relaxed">
-                                                                            {aiText}
-                                                                        </p>
+                                                                        <div className="text-xs md:text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+                                                                            {cleanText(aiText)}
+                                                                        </div>
                                                                     </div>
                                                                 )}
                                                                 {guidanceText && (
@@ -572,9 +610,9 @@
                                                                             <i className="fas fa-info-circle mr-2"></i>
                                                                             Additional Context
                                                                         </h4>
-                                                                        <p className="text-xs md:text-sm text-gray-600 whitespace-pre-wrap">
-                                                                            {guidanceText}
-                                                                        </p>
+                                                                        <div className="text-xs md:text-sm text-gray-600 whitespace-pre-line">
+                                                                            {cleanText(guidanceText)}
+                                                                        </div>
                                                                     </div>
                                                                 )}
                                                             </>

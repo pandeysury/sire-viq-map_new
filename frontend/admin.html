@@ -88,6 +88,7 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
         const API_BASE_URL = window.location.origin.includes('localhost') ? 'http://localhost:8003' : '/viq-rag/api';
+        // const API_BASE_URL = 'http://localhost:8000';
 
         function AdminDashboard() {
             const [activeTab, setActiveTab] = useState('overview');
@@ -147,7 +148,7 @@
                 try {
                     const response = await fetch(`${API_BASE_URL}/api/v1/feedback/stats`);
                     const data = await response.json();
-                    setFeedbackStats(data.feedback_stats);
+                    setFeedbackStats(data);
                 } catch (err) {
                     console.error('Error fetching feedback stats:', err);
                     setToast({ show: true, type: 'error', message: 'Failed to load feedback stats' });
@@ -710,7 +711,7 @@
                                     { id: 'overview', label: 'Overview', icon: 'fa-home' },
                                     { id: 'analytics', label: 'Analytics', icon: 'fa-chart-pie' },
                                     { id: 'history', label: 'Search History', icon: 'fa-history' },
-                                    { id: 'questions', label: 'VIQ Questions', icon: 'fa-question-circle' },
+                                    // { id: 'questions', label: 'VIQ Questions', icon: 'fa-question-circle' },
                                     { id: 'performance', label: 'Performance', icon: 'fa-chart-bar' }
                                 ].map(tab => (
                                     <button
