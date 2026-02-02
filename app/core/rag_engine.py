@@ -203,10 +203,27 @@ Search Terms:"""
                     import chromadb
                     chroma_client = chromadb.PersistentClient(path=settings.CHROMA_PERSIST_DIRECTORY)
                     viq_collection = chroma_client.get_collection(settings.CHROMA_COLLECTION_NAME)
-                    viq_data = await asyncio.to_thread(
-                        viq_collection.get,
-                        where={"viq_number": viq_number}
-                    )
+                    
+                    # Try with proper operator first, fallback to simple get if needed
+                    try:
+                        viq_data = await asyncio.to_thread(
+                            viq_collection.get,
+                            where={"viq_number": {"$eq": viq_number}}
+                        )
+                    except Exception:
+                        # Fallback: get all and filter manually
+                        all_data = await asyncio.to_thread(
+                            viq_collection.get,
+                            include=['metadatas', 'documents']
+                        )
+                        viq_data = {'ids': [], 'metadatas': [], 'documents': []}
+                        if all_data['metadatas']:
+                            for i, metadata in enumerate(all_data['metadatas']):
+                                if metadata.get('viq_number') == viq_number:
+                                    viq_data['ids'].append(all_data['ids'][i])
+                                    viq_data['metadatas'].append(metadata)
+                                    viq_data['documents'].append(all_data['documents'][i])
+                                    break
                     
                     if viq_data['ids']:
                         result = {

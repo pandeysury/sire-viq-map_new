@@ -177,43 +177,71 @@ class VectorStore:
             if not self.is_initialized or not self.collection:
                 return []
             
-            # Prepare where clause for vessel type filtering
-            where_clause = None
-            if vessel_type != "All":
-                where_clause = {"vessel_type": vessel_type}
-            
-            # Query ChromaDB
-            if self.openai_client:
-                # Get query embedding
-                query_embedding = await self.get_openai_embeddings([query])
-                if query_embedding:
-                    results = self.collection.query(
-                        query_embeddings=[query_embedding[0]],
-                        n_results=top_k,
-                        where=where_clause
-                    )
+            # Try with ChromaDB filtering first
+            try:
+                # Prepare where clause for vessel type filtering
+                where_clause = None
+                if vessel_type != "All":
+                    where_clause = {"vessel_type": {"$eq": vessel_type}}
+                
+                # Query ChromaDB
+                if self.openai_client:
+                    # Get query embedding
+                    query_embedding = await self.get_openai_embeddings([query])
+                    if query_embedding:
+                        results = self.collection.query(
+                            query_embeddings=[query_embedding[0]],
+                            n_results=top_k * 2,  # Get more results to filter
+                            where=where_clause
+                        )
+                    else:
+                        # Fallback to text search
+                        results = self.collection.query(
+                            query_texts=[query],
+                            n_results=top_k * 2,
+                            where=where_clause
+                        )
                 else:
-                    # Fallback to text search
+                    # Use ChromaDB's built-in text search
                     results = self.collection.query(
                         query_texts=[query],
-                        n_results=top_k,
+                        n_results=top_k * 2,
                         where=where_clause
                     )
-            else:
-                # Use ChromaDB's built-in text search
-                results = self.collection.query(
-                    query_texts=[query],
-                    n_results=top_k,
-                    where=where_clause
-                )
+            except Exception as filter_error:
+                logger.warning(f"ChromaDB filtering failed, falling back to post-filtering: {str(filter_error)}")
+                # Fallback: Query without filtering and filter results manually
+                if self.openai_client:
+                    query_embedding = await self.get_openai_embeddings([query])
+                    if query_embedding:
+                        results = self.collection.query(
+                            query_embeddings=[query_embedding[0]],
+                            n_results=top_k * 3  # Get more results for manual filtering
+                        )
+                    else:
+                        results = self.collection.query(
+                            query_texts=[query],
+                            n_results=top_k * 3
+                        )
+                else:
+                    results = self.collection.query(
+                        query_texts=[query],
+                        n_results=top_k * 3
+                    )
             
-            # Format results
+            # Format results with additional vessel type filtering
             matches = []
             if results['documents'] and results['documents'][0]:
                 for i in range(len(results['documents'][0])):
                     metadata = results['metadatas'][0][i]
                     distance = results['distances'][0][i] if results['distances'] else 0.5
                     similarity = 1.0 - distance  # Convert distance to similarity
+                    
+                    # Additional vessel type check (in case ChromaDB filtering didn't work)
+                    if vessel_type != "All":
+                        doc_vessel_type = metadata.get('vessel_type', 'All')
+                        if doc_vessel_type != vessel_type and doc_vessel_type != 'All':
+                            continue
                     
                     if similarity >= confidence_threshold:
                         matches.append({
@@ -227,7 +255,7 @@ class VectorStore:
                             'metadata': {'category': metadata.get('category', '')}
                         })
             
-            return matches
+            return matches[:top_k]
             
         except Exception as e:
             logger.error(f"Semantic search failed: {str(e)}")

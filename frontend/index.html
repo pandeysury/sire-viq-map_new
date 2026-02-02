@@ -115,6 +115,8 @@
         const { useState, useEffect } = React;
 
         const API_BASE_URL = window.location.origin.includes('localhost') ? 'http://localhost:8003' : '/viq-rag/api';
+        // const API_BASE_URL = 'http://localhost:8000';
+        
 
         function App() {
             const [query, setQuery] = useState('');
@@ -280,11 +282,22 @@
                         {/* Header */}
                         <div className="gradient-bg text-white py-6">
                             <div className="container mx-auto px-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="text-center flex-1">
+                                        <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-2">
+                                            <i className="fas fa-ship mr-2 md:mr-3"></i>
+                                             Sail VIQ AI 
+                                        </h1>
+                                    </div>
+                                    <button 
+                                        onClick={() => window.location.href = 'admin.html'}
+                                        className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg transition-all duration-200 flex items-center space-x-2"
+                                    >
+                                        <i className="fas fa-chart-bar"></i>
+                                        <span>Dashboard</span>
+                                    </button>
+                                </div>
                                 <div className="text-center">
-                                    <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-2">
-                                        <i className="fas fa-ship mr-2 md:mr-3"></i>
-                                         Sail VIQ AI 
-                                    </h1>
                                     <p className="text-base md:text-xl opacity-90 mb-3">
                                         VIQ SIRE 2.0 AI Assistant
                                     </p>

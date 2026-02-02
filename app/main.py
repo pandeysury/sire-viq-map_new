@@ -326,12 +326,8 @@ async def search_viq(request: QueryRequest, db: Session = Depends(get_db)):
         if request.vessel_type and request.vessel_type.lower() != "all":
             vessel_type = str(request.vessel_type).strip()[:50]
             if vessel_type.replace(' ', '').replace('-', '').replace('_', '').isalnum():
-                where_clause = {
-                    "$or": [
-                        {"vessel_types": {"$contains": vessel_type}},
-                        {"vessel_types": {"$contains": "All"}}
-                    ]
-                }
+                # Use simple equality check instead of $contains
+                where_clause = {"vessel_types": vessel_type}
         
         # First, try to find in training data (findings)
         matches = []
@@ -385,17 +381,32 @@ async def search_viq(request: QueryRequest, db: Session = Depends(get_db)):
         
         # Fallback to normal VIQ question search if no training matches
         if not matches:
-            results = collection.query(
-                query_embeddings=[query_embedding],
-                n_results=request.top_k,
-                where=where_clause
-            )
+            try:
+                results = collection.query(
+                    query_embeddings=[query_embedding],
+                    n_results=request.top_k * 2,  # Get more results for filtering
+                    where=where_clause
+                )
+            except Exception as filter_error:
+                logger.warning(f"ChromaDB filtering failed, using manual filtering: {str(filter_error)}")
+                # Fallback: Query without filtering and filter manually
+                results = collection.query(
+                    query_embeddings=[query_embedding],
+                    n_results=request.top_k * 3
+                )
             
             if results['documents'] and results['documents'][0]:
                 for i in range(len(results['documents'][0])):
                     metadata = results['metadatas'][0][i]
                     distance = results['distances'][0][i]
                     similarity_score = 1 - distance
+                    
+                    # Manual vessel type filtering if ChromaDB filtering failed
+                    if request.vessel_type and request.vessel_type.lower() != "all":
+                        doc_vessel_types = metadata.get('vessel_types', 'All')
+                        if (request.vessel_type not in doc_vessel_types and 
+                            "All" not in doc_vessel_types):
+                            continue
                     
                     if similarity_score >= request.confidence_threshold:
                         match = VIQMatch(
@@ -406,6 +417,9 @@ async def search_viq(request: QueryRequest, db: Session = Depends(get_db)):
                             context=metadata.get('context', '')
                         )
                         matches.append(match)
+                        
+                        if len(matches) >= request.top_k:
+                            break
         
         # Log search to database
         processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
@@ -440,24 +454,34 @@ async def analyze_finding(request: QueryRequest, db: Session = Depends(get_db)):
         if not client or not search_response.matches:
             return search_response
         
+        # Create focused analysis prompt for ONLY the best match
+        best_match = search_response.matches[0]
+        
         prompt = f"""
-Analyze this ship audit finding:
+Analyze this ship audit finding and explain why the best matched VIQ question is relevant:
 
 Finding: "{request.query}"
-Vessel Type: {request.vessel_type}
+Vessel Type: {request.vessel_type or 'All'}
 
-Based on these VIQ matches, provide a brief analysis:
-{json.dumps([match.dict() for match in search_response.matches[:3]], indent=2)}
+Best Match:
+VIQ {best_match.viq_number}: {best_match.question}
+Vessel Types: {best_match.vessel_types}
+Confidence Score: {best_match.similarity_score}
 
-Provide concise insights about the most relevant VIQ questions.
+Provide a complete analysis that:
+1. Explains what this specific finding indicates about the ship's operations
+2. Why this specific VIQ question is the most relevant match
+3. What compliance or safety concerns this finding highlights
+
+Provide complete analysis without truncation.
 """
         
         try:
             response = client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=500,
-                temperature=0.3
+                max_tokens=400,
+                temperature=0.2
             )
             
             analysis = response.choices[0].message.content
