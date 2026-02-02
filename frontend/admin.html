@@ -87,7 +87,7 @@
 
     <script type="text/babel">
         const { useState, useEffect } = React;
-        const API_BASE_URL = 'http://localhost:8000';
+        const API_BASE_URL = window.location.origin.includes('localhost') ? 'http://localhost:8003' : '/viq-rag/api';
 
         function AdminDashboard() {
             const [activeTab, setActiveTab] = useState('overview');
@@ -682,13 +682,22 @@
                                         Real-time monitoring and analytics
                                     </p>
                                 </div>
-                                <button
-                                    onClick={fetchAllData}
-                                    className="bg-white text-blue-600 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors"
-                                >
-                                    <i className="fas fa-sync-alt mr-2"></i>
-                                    Refresh
-                                </button>
+                                <div className="flex space-x-3">
+                                    <button
+                                        onClick={() => window.location.href = 'index.html'}
+                                        className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg transition-all duration-200 flex items-center space-x-2"
+                                    >
+                                        <i className="fas fa-search"></i>
+                                        <span>Search</span>
+                                    </button>
+                                    <button
+                                        onClick={fetchAllData}
+                                        className="bg-white text-blue-600 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors"
+                                    >
+                                        <i className="fas fa-sync-alt mr-2"></i>
+                                        Refresh
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
