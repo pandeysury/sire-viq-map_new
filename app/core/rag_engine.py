@@ -98,7 +98,7 @@ Search Terms:"""
         self, 
         query: str, 
         vessel_type: str = "All", 
-        top_k: int = 5,
+        top_k: int = 3,
         search_method: SearchMethod = SearchMethod.HYBRID,
         confidence_threshold: float = 0.3,
         enhance_query: bool = True

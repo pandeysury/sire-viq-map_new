@@ -181,46 +181,57 @@
                 }
             };
 
-            const handleSearch = async (useAI = false) => {
+            const handleSearch = async () => {
                 if (!query.trim()) {
                     setError('Please enter an audit finding');
                     return;
                 }
 
                 setLoading(true);
-                setSearchingButton(useAI ? 'ai' : 'quick');
                 setError('');
                 setResults([]);
 
                 try {
-                    const endpoint = useAI ? '/api/v1/analyze-finding' : '/api/v1/search';
-                    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            query: query,
-                            vessel_type: vesselType,
-                            top_k: useAI ? 10 : 5
+                    const [quickResponse, aiResponse] = await Promise.all([
+                        fetch(`${API_BASE_URL}/api/v1/search`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ query, vessel_type: vesselType, top_k: 3 })
                         }),
-                    });
+                        fetch(`${API_BASE_URL}/api/v1/analyze-finding`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ query, vessel_type: vesselType, top_k: 3})
+                        })
+                    ]);
 
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                    if (!quickResponse.ok || !aiResponse.ok) {
+                        throw new Error('Search failed');
                     }
 
-                    const data = await response.json();
-                    console.log('API Response:', data);
-                    console.log('Total matches:', data.matches?.length);
-                    setResults(data.matches || []);
+                    const [quickData, aiData] = await Promise.all([
+                        quickResponse.json(),
+                        aiResponse.json()
+                    ]);
+
+                    const mergedResults = [...(aiData.matches || []), ...(quickData.matches || [])];
+                    const uniqueResults = Array.from(
+                        new Map(mergedResults.map(m => [m.viq_number, m])).values()
+                    ).sort((a, b) => b.similarity_score - a.similarity_score);
+
+                    setResults(uniqueResults);
                 } catch (err) {
                     setError(`Error: ${err.message}`);
                     console.error('Search error:', err);
                 } finally {
                     setLoading(false);
-                    setSearchingButton(null);
                 }
+            };
+
+            const handleClearChat = () => {
+                setQuery('');
+                setResults([]);
+                setError('');
             };
 
             const getScoreColor = (score) => {
@@ -371,38 +382,30 @@
 
                                 <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
                                     <button
-                                        onClick={() => handleSearch(false)}
+                                        onClick={handleSearch}
                                         disabled={loading}
-                                        className="flex-1 bg-blue-600 text-white py-3 px-4 md:px-6 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
+                                        className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-4 md:px-6 rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm md:text-base font-medium"
                                     >
-                                        {searchingButton === 'quick' ? (
+                                        {loading ? (
                                             <span className="flex items-center justify-center">
                                                 <div className="loading-spinner mr-2"></div>
-                                                Searching...
+                                                Searching & Analyzing...
                                             </span>
                                         ) : (
                                             <span>
                                                 <i className="fas fa-search mr-2"></i>
-                                                Quick Search
+                                                <i className="fas fa-brain mr-2"></i>
+                                                Quick Search & Analysis AI
                                             </span>
                                         )}
                                     </button>
                                     <button
-                                        onClick={() => handleSearch(true)}
+                                        onClick={handleClearChat}
                                         disabled={loading}
-                                        className="flex-1 bg-purple-600 text-white py-3 px-4 md:px-6 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
+                                        className="flex-1 bg-gray-500 text-white py-3 px-4 md:px-6 rounded-lg hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm md:text-base"
                                     >
-                                        {searchingButton === 'ai' ? (
-                                            <span className="flex items-center justify-center">
-                                                <div className="loading-spinner mr-2"></div>
-                                                Analyzing...
-                                            </span>
-                                        ) : (
-                                            <span>
-                                                <i className="fas fa-brain mr-2"></i>
-                                                AI Analysis
-                                            </span>
-                                        )}
+                                        <i className="fas fa-eraser mr-2"></i>
+                                        Clear Chat
                                     </button>
                                 </div>
 
@@ -441,9 +444,11 @@
                                                     <span className="bg-blue-100 text-blue-800 text-xs md:text-sm font-medium px-3 py-1 rounded-full">
                                                         VIQ {match.viq_number}
                                                     </span>
-                                                    <span className={`text-xs md:text-sm font-medium px-2 py-1 rounded-full ${getScoreColor(match.similarity_score)}`}>
-                                                        {formatScore(match.similarity_score)} Match
-                                                    </span>
+                                                    {index === 0 && (
+                                                        <span className={`text-xs md:text-sm font-medium px-2 py-1 rounded-full ${getScoreColor(match.similarity_score)}`}>
+                                                            {formatScore(match.similarity_score)} Match
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 <div className="text-xs md:text-sm text-gray-500">
                                                     <i className="fas fa-ship mr-1"></i>
@@ -555,9 +560,6 @@
                                                         <div className="flex flex-wrap items-center gap-2">
                                                             <span className="bg-blue-100 text-blue-800 text-xs md:text-sm font-medium px-3 py-1 rounded-full">
                                                                 VIQ {match.viq_number}
-                                                            </span>
-                                                            <span className={`text-xs md:text-sm font-medium px-2 py-1 rounded-full ${getScoreColor(match.similarity_score)}`}>
-                                                                {formatScore(match.similarity_score)} Match
                                                             </span>
                                                         </div>
                                                         <div className="text-xs md:text-sm text-gray-500">

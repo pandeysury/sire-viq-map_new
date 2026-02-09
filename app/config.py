@@ -33,10 +33,10 @@ class Settings(BaseSettings):
     MAX_CONTENT_LENGTH: int = 8000
     
     # Search Settings
-    DEFAULT_TOP_K: int = 5
-    MAX_TOP_K: int = 20
+    DEFAULT_TOP_K: int = 3
+    MAX_TOP_K: int = 3
     SIMILARITY_THRESHOLD: float = 0.3
-    RERANK_TOP_K: int = 10
+    RERANK_TOP_K: int = 3
     
     # Vessel Types
     VESSEL_TYPES: List[str] = ["All", "Oil", "Chemical", "LPG", "LNG"]

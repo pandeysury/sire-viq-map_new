@@ -66,7 +66,7 @@ def test_search():
         {
             "query": "Fire detection system malfunction in engine room",
             "vessel_type": "All",
-            "top_k": 5
+            "top_k": 3
         },
         {
             "query": "Crew training records incomplete for cargo operations",
