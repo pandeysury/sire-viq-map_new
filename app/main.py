@@ -423,7 +423,7 @@ async def search_viq(request: QueryRequest, db: Session = Depends(get_db)):
         
         # Log search to database
         processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
-        if matches:
+        if matches and not _skip_logging:
             search_log = SearchHistory(
                 query=request.query,
                 result_viq=matches[0].viq_number,
@@ -445,11 +445,16 @@ async def search_viq(request: QueryRequest, db: Session = Depends(get_db)):
         logger.error(f"Error in search: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+_skip_logging = False
+
 @app.post("/api/v1/analyze-finding", response_model=QueryResponse)
 async def analyze_finding(request: QueryRequest, db: Session = Depends(get_db)):
     """Analyze finding with AI enhancement"""
+    global _skip_logging
     try:
+        _skip_logging = True
         search_response = await search_viq(request, db)
+        _skip_logging = False
         
         if not client or not search_response.matches:
             return search_response

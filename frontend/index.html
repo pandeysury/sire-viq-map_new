@@ -268,9 +268,6 @@
                                 data.message || 'Feedback submitted successfully!'
                         });
                         fetchFeedbackStats();
-                        if (data.learned) {
-                            setTimeout(() => handleSearch(false), 1000);
-                        }
                     } else {
                         setToast({ show: true, type: 'error', message: data.message || 'Failed to submit feedback' });
                     }
