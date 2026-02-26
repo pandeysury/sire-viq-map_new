@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
 from typing import List, Optional
@@ -821,7 +821,7 @@ async def get_search_history(db: Session = Depends(get_db)):
     """Get real search history from database"""
     try:
         # Get recent searches from database
-        searches = db.query(SearchHistory).order_by(SearchHistory.timestamp.desc()).limit(50).all()
+        searches = db.query(SearchHistory).order_by(SearchHistory.timestamp.desc()).limit(1000).all()
         
         search_history = []
         for search in searches:
@@ -864,6 +864,30 @@ async def get_search_history(db: Session = Depends(get_db)):
             "total_count": 0,
             "error": str(e)
         }
+
+@app.get("/api/v1/search-history/export")
+async def export_search_history(db: Session = Depends(get_db)):
+    """Export search history as CSV"""
+    import io
+    try:
+        searches = db.query(SearchHistory).order_by(SearchHistory.timestamp.desc()).limit(1000).all()
+        csv_data = io.StringIO()
+        csv_data.write("ID,Query,Result VIQ,Confidence,Time (ms),Vessel Type,Search Method,Feedback,Correct VIQ,Timestamp\n")
+        for search in searches:
+            feedback = db.query(UserFeedback).filter(
+                UserFeedback.query == search.query,
+                UserFeedback.suggested_viq == search.result_viq
+            ).first()
+            query_escaped = search.query.replace('"', '""')
+            result_viq = search.result_viq if search.result_viq else 'N/A'
+            feedback_type = feedback.feedback_type if feedback else 'None'
+            correct_viq = feedback.correct_viq if feedback and feedback.correct_viq else 'N/A'
+            csv_data.write(f'{search.id},"{query_escaped}","{result_viq}",{search.confidence},{search.time_ms},{search.vessel_type},{search.search_method},{feedback_type},"{correct_viq}",{search.timestamp.isoformat()}\n')
+        csv_data.seek(0)
+        return StreamingResponse(iter([csv_data.getvalue()]), media_type="text/csv", headers={"Content-Disposition": f"attachment; filename=search_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"})
+    except Exception as e:
+        logger.error(f"Error exporting search history: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to export search history")
 
 @app.get("/api/v1/feedback/stats")
 async def get_feedback_stats(db: Session = Depends(get_db)):
