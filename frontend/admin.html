@@ -468,10 +468,19 @@
 
             const SearchHistoryTab = () => (
                 <div className="bg-white rounded-lg shadow-lg p-6">
-                    <h3 className="text-xl font-bold mb-4">
-                        <i className="fas fa-history mr-2 text-blue-600"></i>
-                        Recent Searches
-                    </h3>
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-bold">
+                            <i className="fas fa-history mr-2 text-blue-600"></i>
+                            Recent Searches
+                        </h3>
+                        <button
+                            onClick={() => window.open(`${API_BASE_URL}/api/v1/search-history/export`, '_blank')}
+                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
+                        >
+                            <i className="fas fa-download"></i>
+                            <span>Export CSV</span>
+                        </button>
+                    </div>
                     <div className="overflow-x-auto">
                         <table className="min-w-full">
                             <thead className="bg-gray-50">
