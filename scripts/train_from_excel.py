@@ -34,19 +34,48 @@ class VIQTrainingSystem:
         self.training_dir = script_dir / 'data' / 'training'
         self.training_dir.mkdir(parents=True, exist_ok=True)
         
+    def _get_already_processed_files(self, client):
+        """Get set of already processed Excel filenames from ChromaDB"""
+        try:
+            collections = [c.name for c in client.list_collections()]
+            if 'viq_training' not in collections:
+                return set()
+            col = client.get_collection('viq_training')
+            if col.count() == 0:
+                return set()
+            all_meta = col.get()['metadatas']
+            return {m['source'] for m in all_meta if m.get('source') and not m['source'].startswith('user_')}
+        except:
+            return set()
+
     def load_excel_sheets(self):
-        """Load all Excel sheets from training directory"""
+        """Load only new Excel sheets from training directory"""
         print("📚 Loading Training Data from Excel Sheets...")
         print("=" * 60)
-        
+
+        script_dir = Path(__file__).parent.parent
+        persist_dir = script_dir / 'data' / 'vectordb'
+        client = chromadb.PersistentClient(path=str(persist_dir))
+        already_processed = self._get_already_processed_files(client)
+
         excel_files = list(self.training_dir.glob("*.xlsx")) + list(self.training_dir.glob("*.xls"))
         
         if not excel_files:
             print("❌ No Excel files found in data/training/")
             print("   Please add Excel files with columns: Finding, VIQ Number")
             return False
-        
-        for excel_file in excel_files:
+
+        new_files = [f for f in excel_files if f.name not in already_processed]
+
+        if not new_files:
+            print("ℹ️  No new Excel files to process — all already trained")
+            print(f"   Already processed: {', '.join(already_processed)}")
+            return False
+
+        print(f"   ⏭️  Skipping already trained: {already_processed or 'none'}")
+        print(f"   🆕 New files to process: {[f.name for f in new_files]}")
+
+        for excel_file in new_files:
             print(f"\n📄 Processing: {excel_file.name}")
             
             try:
@@ -152,27 +181,27 @@ class VIQTrainingSystem:
         persist_dir = script_dir / 'data' / 'vectordb'
         client = chromadb.PersistentClient(path=str(persist_dir))
         
-        # Create training collection
-        try:
-            client.delete_collection('viq_training')
-        except:
-            pass
+        # Get or create training collection — never delete anything
+        collections = [c.name for c in client.list_collections()]
+        if 'viq_training' in collections:
+            training_collection = client.get_collection('viq_training')
+        else:
+            training_collection = client.create_collection(
+                name='viq_training',
+                metadata={"hnsw:space": "cosine"}
+            )
         
-        training_collection = client.create_collection(
-            name='viq_training',
-            metadata={"hnsw:space": "cosine"}
-        )
-        
-        # Add data in batches to avoid size limits
-        batch_size = 5000  # Safe batch size
+        import time
+        batch_size = 5000
         total_items = len(self.training_data)
+        base_ts = int(time.time() * 1000)
         
         for i in range(0, total_items, batch_size):
             end_idx = min(i + batch_size, total_items)
             batch_data = self.training_data[i:end_idx]
             
-            # Prepare batch data
-            ids = [f"train_{j}" for j in range(i, end_idx)]
+            # Unique IDs using timestamp to avoid collision with existing data
+            ids = [f"excel_{base_ts}_{i+j}" for j, _ in enumerate(batch_data)]
             documents = [item['finding'] for item in batch_data]
             embeddings = [item['embedding'] for item in batch_data]
             metadatas = [
