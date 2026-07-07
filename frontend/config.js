@@ -10,4 +10,4 @@
 // container's entrypoint generate it from the EMBEDDED_MODE environment
 // variable (e.g. with envsubst), while leaving the production container's
 // copy of this file untouched.
-window.EMBEDDED_MODE = false;
+window.EMBEDDED_MODE = true;
