@@ -113,7 +113,7 @@
 
     <script src="config.js"></script>
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
 
         const API_BASE_URL = window.location.origin.includes('localhost') ? 'http://localhost:8000' : '/viq-rag/api';
 
@@ -140,6 +140,8 @@
             const [clarificationText, setClarificationText] = useState('');
             const [clarificationViq, setClarificationViq] = useState('');
             const [clarificationSubmitting, setClarificationSubmitting] = useState(false);
+            const [aiAnalysis, setAiAnalysis] = useState(null);
+            const streamAbortRef = useRef(null);
 
             useEffect(() => {
                 if (toast.show) {
@@ -197,44 +199,38 @@
                     return;
                 }
 
+                if (streamAbortRef.current) {
+                    streamAbortRef.current.abort();
+                    streamAbortRef.current = null;
+                }
+
                 setLoading(true);
                 setError('');
                 setResults([]);
+                setAiAnalysis(null);
                 setHasSearched(true);
                 setClarification(null);
                 setClarificationText('');
                 setClarificationViq('');
 
                 try {
-                    const [quickResponse, aiResponse] = await Promise.all([
-                        fetch(`${API_BASE_URL}/api/v1/search`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ query: searchQuery, vessel_type: vesselType, top_k: 3 })
-                        }),
-                        fetch(`${API_BASE_URL}/api/v1/analyze-finding`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ query: searchQuery, vessel_type: vesselType, top_k: 3})
-                        })
-                    ]);
+                    const quickResponse = await fetch(`${API_BASE_URL}/api/v1/search`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ query: searchQuery, vessel_type: vesselType, top_k: 3 })
+                    });
 
-                    if (!quickResponse.ok || !aiResponse.ok) {
+                    if (!quickResponse.ok) {
                         throw new Error('Search failed');
                     }
 
-                    const [quickData, aiData] = await Promise.all([
-                        quickResponse.json(),
-                        aiResponse.json()
-                    ]);
+                    const quickData = await quickResponse.json();
+                    const sortedResults = [...(quickData.matches || [])].sort(
+                        (a, b) => b.similarity_score - a.similarity_score
+                    );
 
-                    const mergedResults = [...(aiData.matches || []), ...(quickData.matches || [])];
-                    const uniqueResults = Array.from(
-                        new Map(mergedResults.map(m => [m.viq_number, m])).values()
-                    ).sort((a, b) => b.similarity_score - a.similarity_score);
-
-                    setResults(uniqueResults);
-                    if (uniqueResults.length === 0) {
+                    setResults(sortedResults);
+                    if (sortedResults.length === 0) {
                         setClarification(buildClarificationPrompt(searchQuery));
                     }
                 } catch (err) {
@@ -243,11 +239,66 @@
                 } finally {
                     setLoading(false);
                 }
+
+                // Stream the AI analysis for the top match separately, so search
+                // results render immediately and the analysis text appears as it's generated.
+                streamAnalysis(searchQuery);
+            };
+
+            const streamAnalysis = async (searchQuery) => {
+                const controller = new AbortController();
+                streamAbortRef.current = controller;
+
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/v1/analyze-finding/stream`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ query: searchQuery, vessel_type: vesselType, top_k: 3 }),
+                        signal: controller.signal
+                    });
+
+                    if (!response.ok || !response.body) return;
+
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop();
+
+                        for (const line of lines) {
+                            if (!line.trim()) continue;
+                            const event = JSON.parse(line);
+
+                            if (event.type === 'match' && event.matches && event.matches.length > 0) {
+                                setAiAnalysis({ viqNumber: event.matches[0].viq_number, text: '', streaming: true });
+                            } else if (event.type === 'token') {
+                                setAiAnalysis(prev => prev ? { ...prev, text: prev.text + event.text } : prev);
+                            } else if (event.type === 'done' || event.type === 'error') {
+                                setAiAnalysis(prev => prev ? { ...prev, streaming: false } : prev);
+                            }
+                        }
+                    }
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.error('Streaming analysis error:', err);
+                    }
+                }
             };
 
             const handleClearChat = () => {
+                if (streamAbortRef.current) {
+                    streamAbortRef.current.abort();
+                    streamAbortRef.current = null;
+                }
                 setQuery('');
                 setResults([]);
+                setAiAnalysis(null);
                 setError('');
                 setHasSearched(false);
                 setClarification(null);
@@ -329,6 +380,25 @@
 
             const formatScore = (score) => {
                 return `${(score * 100).toFixed(1)}%`;
+            };
+
+            const cleanText = (text) => {
+                if (!text) return text;
+                return text
+                    .replace(/&#39;/g, "'")
+                    .replace(/&quot;/g, '"')
+                    .replace(/&amp;/g, '&')
+                    .replace(/&lt;/g, '<')
+                    .replace(/&gt;/g, '>')
+                    .replace(/^#{1,6}\s+/gm, '')        // headings
+                    .replace(/^>\s?/gm, '')             // blockquotes
+                    .replace(/^[-*]\s+/gm, '')          // bullet list markers
+                    .replace(/^\d+[\.\)]\s+/gm, '')     // numbered list markers (1. or 1))
+                    .replace(/^-{3,}\s*$|^\*{3,}\s*$/gm, '') // horizontal rules
+                    .replace(/\*\*(.*?)\*\*/g, '$1')    // bold
+                    .replace(/\*(.*?)\*/g, '$1')        // italic
+                    .replace(/\n{3,}/g, '\n\n')         // collapse extra blank lines
+                    .trim();
             };
 
             const handleFeedback = async (match, feedbackType, correctViq = null) => {
@@ -552,55 +622,31 @@
                                                 {match.question}
                                             </h3>
                                             
-                                            {match.context && (() => {
-                                                const isAIAnalysis = match.context.startsWith('AI Analysis:');
-                                                const parts = isAIAnalysis ? match.context.split('\n\nGuidance:') : [match.context];
-                                                const aiText = isAIAnalysis ? parts[0].replace('AI Analysis:', '').trim() : null;
-                                                const guidanceText = isAIAnalysis && parts[1] ? parts[1].trim() : (!isAIAnalysis ? match.context : null);
-                                                
-                                                // Clean up HTML entities and formatting
-                                                const cleanText = (text) => {
-                                                    if (!text) return text;
-                                                    return text
-                                                        .replace(/&#39;/g, "'")
-                                                        .replace(/&quot;/g, '"')
-                                                        .replace(/&amp;/g, '&')
-                                                        .replace(/&lt;/g, '<')
-                                                        .replace(/&gt;/g, '>')
-                                                        .replace(/###\s*/g, '')
-                                                        .replace(/####\s*/g, '')
-                                                        .replace(/\*\*/g, '')
-                                                        .trim();
-                                                };
-                                                
-                                                return (
-                                                    <>
-                                                        {aiText && (
-                                                            <div className="bg-purple-50 border-l-4 border-purple-500 p-3 md:p-4 rounded-lg mb-4">
-                                                                <h4 className="font-semibold text-purple-800 mb-2 text-sm md:text-base flex items-center">
-                                                                    <i className="fas fa-brain mr-2"></i>
-                                                                    AI Analysis
-                                                                </h4>
-                                                                <div className="text-xs md:text-sm text-gray-700 leading-relaxed whitespace-pre-line">
-                                                                    {cleanText(aiText)}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                        {!EMBEDDED_MODE && guidanceText && (
-                                                            <div className="bg-gray-50 p-3 md:p-4 rounded-lg mb-4">
-                                                                <h4 className="font-medium text-gray-700 mb-2 text-sm md:text-base">
-                                                                    <i className="fas fa-info-circle mr-2"></i>
-                                                                    Additional Context
-                                                                </h4>
-                                                                <div className="text-xs md:text-sm text-gray-600 whitespace-pre-line">
-                                                                    {cleanText(guidanceText)}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </>
-                                                );
-                                            })()}
-                                            
+                                            {aiAnalysis && aiAnalysis.viqNumber === match.viq_number && (
+                                                <div className="bg-purple-50 border-l-4 border-purple-500 p-3 md:p-4 rounded-lg mb-4">
+                                                    <h4 className="font-semibold text-purple-800 mb-2 text-sm md:text-base flex items-center">
+                                                        <i className="fas fa-brain mr-2"></i>
+                                                        AI Analysis
+                                                        {aiAnalysis.streaming && <span className="ml-2 loading-spinner" style={{width: '12px', height: '12px'}}></span>}
+                                                    </h4>
+                                                    <div className="text-xs md:text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+                                                        {cleanText(aiAnalysis.text)}
+                                                        {aiAnalysis.streaming && <span className="animate-pulse">▍</span>}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {!EMBEDDED_MODE && match.context && (
+                                                <div className="bg-gray-50 p-3 md:p-4 rounded-lg mb-4">
+                                                    <h4 className="font-medium text-gray-700 mb-2 text-sm md:text-base">
+                                                        <i className="fas fa-info-circle mr-2"></i>
+                                                        Additional Context
+                                                    </h4>
+                                                    <div className="text-xs md:text-sm text-gray-600 whitespace-pre-line">
+                                                        {cleanText(match.context)}
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             {/* Feedback Buttons */}
                                             <div className="mt-4 pt-4 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                                                 <span className="text-xs md:text-sm text-gray-600">
@@ -664,55 +710,31 @@
                                                         {match.question}
                                                     </h3>
                                                     
-                                                    {match.context && (() => {
-                                                        const isAIAnalysis = match.context.startsWith('AI Analysis:');
-                                                        const parts = isAIAnalysis ? match.context.split('\n\nGuidance:') : [match.context];
-                                                        const aiText = isAIAnalysis ? parts[0].replace('AI Analysis:', '').trim() : null;
-                                                        const guidanceText = isAIAnalysis && parts[1] ? parts[1].trim() : (!isAIAnalysis ? match.context : null);
-                                                        
-                                                        // Clean up HTML entities and formatting
-                                                        const cleanText = (text) => {
-                                                            if (!text) return text;
-                                                            return text
-                                                                .replace(/&#39;/g, "'")
-                                                                .replace(/&quot;/g, '"')
-                                                                .replace(/&amp;/g, '&')
-                                                                .replace(/&lt;/g, '<')
-                                                                .replace(/&gt;/g, '>')
-                                                                .replace(/###\s*/g, '')
-                                                                .replace(/####\s*/g, '')
-                                                                .replace(/\*\*/g, '')
-                                                                .trim();
-                                                        };
-                                                        
-                                                        return (
-                                                            <>
-                                                                {aiText && (
-                                                                    <div className="bg-purple-50 border-l-4 border-purple-500 p-3 md:p-4 rounded-lg mb-4">
-                                                                        <h4 className="font-semibold text-purple-800 mb-2 text-sm md:text-base flex items-center">
-                                                                            <i className="fas fa-brain mr-2"></i>
-                                                                            AI Analysis
-                                                                        </h4>
-                                                                        <div className="text-xs md:text-sm text-gray-700 leading-relaxed whitespace-pre-line">
-                                                                            {cleanText(aiText)}
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-                                                                {!EMBEDDED_MODE && guidanceText && (
-                                                                    <div className="bg-gray-50 p-3 md:p-4 rounded-lg mb-4">
-                                                                        <h4 className="font-medium text-gray-700 mb-2 text-sm md:text-base">
-                                                                            <i className="fas fa-info-circle mr-2"></i>
-                                                                            Additional Context
-                                                                        </h4>
-                                                                        <div className="text-xs md:text-sm text-gray-600 whitespace-pre-line">
-                                                                            {cleanText(guidanceText)}
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-                                                            </>
-                                                        );
-                                                    })()}
-                                                    
+                                                    {aiAnalysis && aiAnalysis.viqNumber === match.viq_number && (
+                                                        <div className="bg-purple-50 border-l-4 border-purple-500 p-3 md:p-4 rounded-lg mb-4">
+                                                            <h4 className="font-semibold text-purple-800 mb-2 text-sm md:text-base flex items-center">
+                                                                <i className="fas fa-brain mr-2"></i>
+                                                                AI Analysis
+                                                                {aiAnalysis.streaming && <span className="ml-2 loading-spinner" style={{width: '12px', height: '12px'}}></span>}
+                                                            </h4>
+                                                            <div className="text-xs md:text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+                                                                {cleanText(aiAnalysis.text)}
+                                                                {aiAnalysis.streaming && <span className="animate-pulse">▍</span>}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {!EMBEDDED_MODE && match.context && (
+                                                        <div className="bg-gray-50 p-3 md:p-4 rounded-lg mb-4">
+                                                            <h4 className="font-medium text-gray-700 mb-2 text-sm md:text-base">
+                                                                <i className="fas fa-info-circle mr-2"></i>
+                                                                Additional Context
+                                                            </h4>
+                                                            <div className="text-xs md:text-sm text-gray-600 whitespace-pre-line">
+                                                                {cleanText(match.context)}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
                                                     <div className="mt-4 pt-4 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                                                         <span className="text-xs md:text-sm text-gray-600">
                                                             <i className="fas fa-question-circle mr-1"></i>

@@ -1,7 +1,10 @@
+import json
 import logging
+import os
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core import rag_engine
@@ -84,14 +87,18 @@ Provide a complete analysis that:
 2. Why this specific VIQ question is the most relevant match
 3. What compliance or safety concerns this finding highlights
 
+Write the analysis as plain prose paragraphs only. Do not use markdown: no headings
+(#, ##, ###), no bullet points or numbered lists, no bold/italic (** or *), no
+blockquotes (>), no horizontal rules (---). Plain sentences and paragraphs only.
+
 Provide complete analysis without truncation.
 """
 
         try:
             response = rag_engine.client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=os.getenv("OPENAI_MODEL", "gpt-5.4-mini"),
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=400,
+                max_completion_tokens=400,
                 temperature=0.2
             )
 
@@ -110,6 +117,71 @@ Provide complete analysis without truncation.
     except Exception as e:
         logger.error(f"Error in analyze_finding: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/analyze-finding/stream")
+async def analyze_finding_stream(request: QueryRequest):
+    """Same analysis as /analyze-finding, but streams the AI text token-by-token
+    as newline-delimited JSON (NDJSON) events: {"type": "match"|"token"|"error"|"done", ...}
+    """
+    matches = rag_engine.perform_search(
+        request.query, request.vessel_type, request.top_k, request.confidence_threshold
+    )
+
+    def generate():
+        yield json.dumps({
+            "type": "match",
+            "matches": [m.model_dump() for m in matches]
+        }) + "\n"
+
+        if not rag_engine.client or not matches:
+            yield json.dumps({"type": "done"}) + "\n"
+            return
+
+        best_match = matches[0]
+
+        prompt = f"""
+Analyze this ship audit finding and explain why the best matched VIQ question is relevant:
+
+Finding: "{request.query}"
+Vessel Type: {request.vessel_type or 'All'}
+
+Best Match:
+VIQ {best_match.viq_number}: {best_match.question}
+Vessel Types: {best_match.vessel_types}
+Confidence Score: {best_match.similarity_score}
+
+Provide a complete analysis that:
+1. Explains what this specific finding indicates about the ship's operations
+2. Why this specific VIQ question is the most relevant match
+3. What compliance or safety concerns this finding highlights
+
+Write the analysis as plain prose paragraphs only. Do not use markdown: no headings
+(#, ##, ###), no bullet points or numbered lists, no bold/italic (** or *), no
+blockquotes (>), no horizontal rules (---). Plain sentences and paragraphs only.
+
+Provide complete analysis without truncation.
+"""
+
+        try:
+            stream = rag_engine.client.chat.completions.create(
+                model=os.getenv("OPENAI_MODEL", "gpt-5.4-mini"),
+                messages=[{"role": "user", "content": prompt}],
+                max_completion_tokens=400,
+                temperature=0.2,
+                stream=True
+            )
+            for chunk in stream:
+                delta = chunk.choices[0].delta.content
+                if delta:
+                    yield json.dumps({"type": "token", "text": delta}) + "\n"
+        except Exception as e:
+            logger.warning(f"OpenAI streaming analysis failed: {str(e)}")
+            yield json.dumps({"type": "error", "message": str(e)}) + "\n"
+
+        yield json.dumps({"type": "done"}) + "\n"
+
+    return StreamingResponse(generate(), media_type="application/x-ndjson")
 
 
 @router.get("/vessel-types")

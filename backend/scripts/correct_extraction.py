@@ -177,7 +177,11 @@ def store_in_chromadb(questions):
         {
             'viq_number': q['viq_number'],
             'question': q['question'],
+            # Both keys written for compatibility: rag_engine.py's perform_search()
+            # reads either "vessel_types" (plural, used by load_viq_data()) or
+            # "vessel_type" (singular).
             'vessel_type': q['vessel_type'],
+            'vessel_types': q['vessel_type'],
             'source_file': q['source_file'],
             'guidance': '',
             'category': 'General',

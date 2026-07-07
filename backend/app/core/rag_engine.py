@@ -17,6 +17,12 @@ chroma_client = None
 collection = None
 
 
+def _get_vessel_types(metadata):
+    """viq_questions entries were written by two different ingestion scripts:
+    one stores "vessel_types" (plural), the other "vessel_type" (singular)."""
+    return metadata.get('vessel_types') or metadata.get('vessel_type') or 'All'
+
+
 async def initialize_system():
     """Initialize all system components"""
     global client, chroma_client, collection
@@ -183,12 +189,14 @@ def perform_search(query: str, vessel_type: str, top_k: int, confidence_threshol
     query_embedding = response.data[0].embedding
 
     # Prepare vessel type filter
+    # Note: the viq_questions collection has entries written by two different
+    # ingestion paths - some store "vessel_type" (singular), some "vessel_types"
+    # (plural) - so the filter has to match either key.
     where_clause = None
     if vessel_type and vessel_type.lower() != "all":
         vt = str(vessel_type).strip()[:50]
         if vt.replace(' ', '').replace('-', '').replace('_', '').isalnum():
-            # Use simple equality check instead of $contains
-            where_clause = {"vessel_types": vt}
+            where_clause = {"$or": [{"vessel_types": vt}, {"vessel_type": vt}]}
 
     # First, try to find in training data (findings)
     matches = []
@@ -219,7 +227,7 @@ def perform_search(query: str, vessel_type: str, top_k: int, confidence_threshol
 
                 if viq_results['metadatas']:
                     viq_metadata = viq_results['metadatas'][0]
-                    viq_vessel_types = viq_metadata.get('vessel_types', 'All')
+                    viq_vessel_types = _get_vessel_types(viq_metadata)
 
                     if vessel_type and vessel_type.lower() != "all":
                         if (vessel_type not in viq_vessel_types and
@@ -263,8 +271,8 @@ def perform_search(query: str, vessel_type: str, top_k: int, confidence_threshol
                 similarity_score = 1 - distance
 
                 # Manual vessel type filtering if ChromaDB filtering failed
+                doc_vessel_types = _get_vessel_types(metadata)
                 if vessel_type and vessel_type.lower() != "all":
-                    doc_vessel_types = metadata.get('vessel_types', 'All')
                     if (vessel_type not in doc_vessel_types and
                             "All" not in doc_vessel_types):
                         continue
@@ -273,7 +281,7 @@ def perform_search(query: str, vessel_type: str, top_k: int, confidence_threshol
                     match = VIQMatch(
                         viq_number=metadata.get('viq_number', 'Unknown'),
                         question=metadata.get('question', 'Unknown'),
-                        vessel_types=metadata.get('vessel_types', 'All'),
+                        vessel_types=doc_vessel_types,
                         similarity_score=round(similarity_score, 4),
                         context=metadata.get('context', '')
                     )
