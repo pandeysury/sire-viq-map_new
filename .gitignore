@@ -65,7 +65,6 @@ viq_rag.log
 # -----------------------------------------------------------------------------
 # Never commit runtime / generated data
 data/
-backend/data/
 *.bin
 *.db
 *.sqlite

@@ -30,7 +30,7 @@ class VIQTrainingSystem:
     def __init__(self):
         self.training_data = []
         # Use absolute path from script location
-        script_dir = Path(__file__).parent.parent
+        script_dir = Path(__file__).parent.parent.parent  # repo root (data/ is a sibling of backend/)
         self.training_dir = script_dir / 'data' / 'training'
         self.training_dir.mkdir(parents=True, exist_ok=True)
         
@@ -53,7 +53,7 @@ class VIQTrainingSystem:
         print("📚 Loading Training Data from Excel Sheets...")
         print("=" * 60)
 
-        script_dir = Path(__file__).parent.parent
+        script_dir = Path(__file__).parent.parent.parent  # repo root (data/ is a sibling of backend/)
         persist_dir = script_dir / 'data' / 'vectordb'
         client = chromadb.PersistentClient(path=str(persist_dir))
         already_processed = self._get_already_processed_files(client)
@@ -177,7 +177,7 @@ class VIQTrainingSystem:
         print(f"\n💾 Saving Training Data to ChromaDB...")
         
         # Use absolute path from script location
-        script_dir = Path(__file__).parent.parent
+        script_dir = Path(__file__).parent.parent.parent  # repo root (data/ is a sibling of backend/)
         persist_dir = script_dir / 'data' / 'vectordb'
         client = chromadb.PersistentClient(path=str(persist_dir))
         
@@ -229,7 +229,7 @@ class VIQTrainingSystem:
         print(f"\n🎯 Testing Training Data Integration...")
         
         # Use absolute path from script location
-        script_dir = Path(__file__).parent.parent
+        script_dir = Path(__file__).parent.parent.parent  # repo root (data/ is a sibling of backend/)
         persist_dir = script_dir / 'data' / 'vectordb'
         client = chromadb.PersistentClient(path=str(persist_dir))
         
@@ -285,7 +285,7 @@ def main():
     print("🚢 VIQ Training System")
     print("=" * 60)
     print("\n📋 Instructions:")
-    print("1. Place Excel files in: backend/data/training/")
+    print("1. Place Excel files in: data/training/")
     print("2. Excel should have columns: 'Finding' and 'VIQ Number'")
     print("3. Run this script to train the system")
     print("\n" + "=" * 60)

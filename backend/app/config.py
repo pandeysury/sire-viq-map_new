@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     
     # Data Paths
     BASE_DIR: Path = Path(__file__).parent.parent
-    DATA_DIR: Path = BASE_DIR / "data"
+    DATA_DIR: Path = BASE_DIR.parent / "data"  # data/ lives at the repo root, sibling of backend/
     PDFS_DIR: Path = DATA_DIR / "pdfs"
     VECTORDB_DIR: Path = DATA_DIR / "vectordb"
     

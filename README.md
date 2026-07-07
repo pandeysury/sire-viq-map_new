@@ -32,31 +32,36 @@ A production-ready AI-powered system that matches ship audit findings to relevan
 ## 🏗️ Architecture
 
 ```
-viq-rag-system/
+sire-viq-map_new/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py              # FastAPI application with lifespan management
-│   │   ├── config.py            # Comprehensive configuration with Pydantic
+│   │   ├── main.py              # FastAPI app assembly: middleware, lifespan, routers
+│   │   ├── config.py            # Pydantic settings (currently unused by main.py)
+│   │   ├── database.py          # SQLAlchemy models + session (search history, feedback)
 │   │   ├── api/routes/
-│   │   │   └── search.py        # RESTful API endpoints with validation
+│   │   │   ├── search.py        # /search, /analyze-finding, /vessel-types, /search-methods
+│   │   │   ├── admin.py         # /stats, /dashboard, /analytics, /system-analytics
+│   │   │   └── feedback.py      # /feedback, /feedback/stats, /search-history(/export)
 │   │   ├── core/
-│   │   │   ├── rag_engine.py    # RAG engine with OpenAI integration
-│   │   │   ├── vector_store.py  # ChromaDB vector store with embeddings
-│   │   │   └── pdf_processor.py # Advanced document processing
-│   │   ├── models/
-│   │   │   └── schemas.py       # Pydantic models with validation
-│   │   └── utils/
-│   │       └── helpers.py       # Utility functions and decorators
-│   ├── data/
-│   │   ├── pdfs/               # VIQ documents and processed data
-│   │   └── vectordb/           # ChromaDB persistence
-│   ├── requirements.txt        # Production dependencies
-│   ├── .env                   # Environment configuration
-│   ├── start.sh              # Automated startup script
-│   └── test_system.py        # Comprehensive test suite
+│   │   │   └── rag_engine.py    # OpenAI + ChromaDB state, ingestion, search matching
+│   │   └── models/
+│   │       └── schemas.py       # Pydantic request/response models
+│   ├── logs/                    # Runtime logs (git-ignored, currently unused by the app)
+│   ├── scripts/                 # Manually-run maintenance scripts (training, ingestion, dev frontend server)
+│   ├── tests/
+│   │   └── test_system.py       # HTTP-based integration test suite
+│   ├── requirements.txt         # Production dependencies
+│   ├── .env                     # Environment configuration (git-ignored)
+│   ├── Dockerfile
+│   └── start.sh                 # Automated local dev startup script (runs `python -m app.main` from repo root)
+├── data/                         # VIQ documents, ChromaDB + SQLite persistence (git-ignored)
 ├── frontend/
-│   └── index.html            # React-based web interface
-└── README.md                 # This file
+│   ├── index.html                # React-based web interface (search UI)
+│   ├── admin.html                # Dashboard UI
+│   └── config.js                 # Runtime config (e.g. EMBEDDED_MODE)
+├── docker-compose.yml            # Builds ./backend, mounts ./data + ./backend/logs
+├── nginx-viq-rag.conf            # Reverse proxy config for production deployment
+└── README.md                     # This file
 ```
 
 ## 🚀 Quick Start
@@ -69,7 +74,7 @@ viq-rag-system/
 ### 1. Setup & Installation
 
 ```bash
-cd viq-rag-system/backend
+cd sire-viq-map_new/backend
 
 # Automated setup (recommended)
 ./start.sh
@@ -89,7 +94,7 @@ echo "OPENAI_API_KEY=sk-proj-your-key-here" > .env
 
 ### 3. Add VIQ Data
 
-Place your VIQ documents in `backend/data/pdfs/`:
+Place your VIQ documents in `data/pdfs/` (repo root, sibling of `backend/`):
 - Text files (`.txt`) - SIRE VIQ question libraries
 - CSV files (`.csv`) - Structured VIQ data
 - PDF files (`.pdf`) - VIQ documents (auto-processed)
@@ -97,11 +102,11 @@ Place your VIQ documents in `backend/data/pdfs/`:
 ### 4. Start the System
 
 ```bash
-# Using the startup script
+# From backend/ - using the startup script (handles venv + cwd for you)
 ./start.sh
 
-# Or directly
-python3 -m app.main
+# Or directly, from the repo root (so "./data" resolves to the top-level data/ folder)
+PYTHONPATH=backend python -m app.main
 ```
 
 ### 5. Access the Application
@@ -146,14 +151,18 @@ Content-Type: application/json
 GET /api/v1/stats              # System statistics
 GET /api/v1/vessel-types       # Available vessel types
 GET /api/v1/search-methods     # Available search methods
-GET /api/v1/health            # Health check
+GET /health                    # Health check
 ```
 
-### 🔄 Data Management
+### 📈 Dashboard & Feedback
 
 ```http
-POST /api/v1/reprocess-data    # Reprocess all documents
-GET /api/v1/processing-status  # Processing status
+GET  /api/v1/dashboard              # Dashboard analytics (searches, feedback, training)
+GET  /api/v1/analytics              # Detailed analytics (last 7 days)
+GET  /api/v1/search-history         # Search history
+GET  /api/v1/search-history/export  # Search history as CSV
+POST /api/v1/feedback               # Submit thumbs up/down or a correction
+GET  /api/v1/feedback/stats         # Feedback statistics
 ```
 
 ## 🧪 Testing
@@ -161,11 +170,11 @@ GET /api/v1/processing-status  # Processing status
 Run the comprehensive test suite:
 
 ```bash
-# Start the system first
+# Start the system first (from backend/)
 ./start.sh
 
-# In another terminal, run tests
-python3 test_system.py
+# In another terminal, run tests (from backend/)
+python3 tests/test_system.py
 ```
 
 The test suite covers:
@@ -214,19 +223,18 @@ Edit `app/config.py` for detailed customization:
 
 ### Project Structure
 
-```python
-# Core Components
-RAGEngine          # Main orchestrator with OpenAI integration
-VectorStore        # ChromaDB with embedding management
-PDFProcessor       # Document processing and extraction
-SearchRoutes       # FastAPI routes with validation
+```
+# Core Components (backend/app/)
+rag_engine.py       # OpenAI + ChromaDB state, VIQ ingestion, search matching
+api/routes/         # FastAPI routers: search, admin, feedback
+models/schemas.py   # Pydantic request/response models
+database.py         # SQLAlchemy models for search history, feedback, analytics
 
 # Key Features
-- Query enhancement using GPT
-- Semantic search with embeddings
-- Result reranking for accuracy
-- Comprehensive error handling
-- Performance monitoring
+- Semantic search with OpenAI embeddings
+- GPT-powered analysis of the best match
+- Learns from user feedback (thumbs up/down feed back into ChromaDB training data)
+- Search history, feedback, and analytics persisted in SQLite
 ```
 
 ### Adding New Features
@@ -271,14 +279,11 @@ SearchRoutes       # FastAPI routes with validation
 ## 🚀 Production Deployment
 
 ### Docker Deployment
-```dockerfile
-FROM python:3.11-slim
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-COPY . .
-CMD ["python", "-m", "app.main"]
+```bash
+# from the repo root
+docker-compose up -d --build
 ```
+`docker-compose.yml` builds `./backend` (see `backend/Dockerfile`) and mounts `./data` (repo root) and `./backend/logs` into the container.
 
 ### Environment Setup
 - Use environment-specific `.env` files

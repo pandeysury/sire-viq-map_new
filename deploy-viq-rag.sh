@@ -39,6 +39,24 @@ cd "$PROJECT_DIR"
 echo -e "${GREEN}✓ In directory: $(pwd)${NC}"
 echo ""
 
+# Backend now lives under backend/ (code, data, logs, .env) and is what
+# docker-compose.yml builds/mounts. Fail early if it's missing so we don't
+# stop the running container only to find the rebuild can't succeed.
+if [ ! -d "$PROJECT_DIR/backend" ]; then
+    echo -e "${RED}Error: $PROJECT_DIR/backend not found. Did the git pull actually bring in the current layout?${NC}"
+    exit 1
+fi
+
+if [ ! -f "$PROJECT_DIR/backend/.env" ]; then
+    echo -e "${RED}Error: $PROJECT_DIR/backend/.env not found.${NC}"
+    echo "docker-compose.yml loads OPENAI_API_KEY etc. from backend/.env (env_file) - the build will fail without it."
+    echo "Create it with at least: OPENAI_API_KEY=sk-proj-your-key-here"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ backend/ and backend/.env present${NC}"
+echo ""
+
 # ====================================================================
 # Step 2: Check Git Status
 # ====================================================================

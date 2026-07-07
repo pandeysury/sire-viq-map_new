@@ -1,0 +1,127 @@
+import logging
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from app.core import rag_engine
+from app.database import SearchHistory, get_db
+from app.models.schemas import QueryRequest, QueryResponse
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+
+
+@router.post("/search", response_model=QueryResponse)
+async def search_viq(request: QueryRequest, db: Session = Depends(get_db)):
+    """Search VIQ questions based on audit finding"""
+    start_time = datetime.now()
+
+    try:
+        matches = rag_engine.perform_search(
+            request.query, request.vessel_type, request.top_k, request.confidence_threshold
+        )
+
+        # Log search to database
+        processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
+        if matches:
+            search_log = SearchHistory(
+                query=request.query,
+                result_viq=matches[0].viq_number,
+                confidence=matches[0].similarity_score,
+                time_ms=processing_time,
+                vessel_type=request.vessel_type or "All",
+                search_method=request.search_method or "hybrid"
+            )
+            db.add(search_log)
+            db.commit()
+
+        return QueryResponse(
+            matches=matches,
+            query=request.query,
+            vessel_type=request.vessel_type or "All"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in search: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/analyze-finding", response_model=QueryResponse)
+async def analyze_finding(request: QueryRequest):
+    """Analyze finding with AI enhancement"""
+    try:
+        matches = rag_engine.perform_search(
+            request.query, request.vessel_type, request.top_k, request.confidence_threshold
+        )
+        search_response = QueryResponse(
+            matches=matches,
+            query=request.query,
+            vessel_type=request.vessel_type or "All"
+        )
+
+        if not rag_engine.client or not search_response.matches:
+            return search_response
+
+        # Create focused analysis prompt for ONLY the best match
+        best_match = search_response.matches[0]
+
+        prompt = f"""
+Analyze this ship audit finding and explain why the best matched VIQ question is relevant:
+
+Finding: "{request.query}"
+Vessel Type: {request.vessel_type or 'All'}
+
+Best Match:
+VIQ {best_match.viq_number}: {best_match.question}
+Vessel Types: {best_match.vessel_types}
+Confidence Score: {best_match.similarity_score}
+
+Provide a complete analysis that:
+1. Explains what this specific finding indicates about the ship's operations
+2. Why this specific VIQ question is the most relevant match
+3. What compliance or safety concerns this finding highlights
+
+Provide complete analysis without truncation.
+"""
+
+        try:
+            response = rag_engine.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=400,
+                temperature=0.2
+            )
+
+            analysis = response.choices[0].message.content
+
+            if search_response.matches:
+                search_response.matches[0].context = f"AI Analysis: {analysis}\\n\\n{search_response.matches[0].context}"
+
+        except Exception as e:
+            logger.warning(f"OpenAI analysis failed: {str(e)}")
+
+        return search_response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in analyze_finding: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/vessel-types")
+async def get_vessel_types():
+    """Get available vessel types"""
+    return {"vessel_types": ["All", "Oil", "Chemical", "LPG", "LNG"]}
+
+
+@router.get("/search-methods")
+async def get_search_methods():
+    """Get available search methods"""
+    return {
+        "search_methods": ["semantic", "keyword", "hybrid"],
+        "default": "hybrid"
+    }
