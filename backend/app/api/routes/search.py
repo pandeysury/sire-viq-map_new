@@ -82,23 +82,21 @@ VIQ {best_match.viq_number}: {best_match.question}
 Vessel Types: {best_match.vessel_types}
 Confidence Score: {best_match.similarity_score}
 
-Provide a complete analysis that:
-1. Explains what this specific finding indicates about the ship's operations
-2. Why this specific VIQ question is the most relevant match
-3. What compliance or safety concerns this finding highlights
+In a SHORT single paragraph of no more than 4 sentences, cover: what this finding
+indicates about the ship's operations, why this specific VIQ question is the best
+match, and the key compliance or safety concern it highlights. Be concise - combine
+these points into flowing sentences, not separate sections.
 
-Write the analysis as plain prose paragraphs only. Do not use markdown: no headings
-(#, ##, ###), no bullet points or numbered lists, no bold/italic (** or *), no
-blockquotes (>), no horizontal rules (---). Plain sentences and paragraphs only.
-
-Provide complete analysis without truncation.
+Write as plain prose only. Do not use markdown: no headings (#, ##, ###), no bullet
+points or numbered lists, no bold/italic (** or *), no blockquotes (>), no
+horizontal rules (---).
 """
 
         try:
             response = rag_engine.client.chat.completions.create(
                 model=os.getenv("OPENAI_MODEL", "gpt-5.4-mini"),
                 messages=[{"role": "user", "content": prompt}],
-                max_completion_tokens=400,
+                max_completion_tokens=200,
                 temperature=0.2
             )
 
@@ -151,23 +149,21 @@ VIQ {best_match.viq_number}: {best_match.question}
 Vessel Types: {best_match.vessel_types}
 Confidence Score: {best_match.similarity_score}
 
-Provide a complete analysis that:
-1. Explains what this specific finding indicates about the ship's operations
-2. Why this specific VIQ question is the most relevant match
-3. What compliance or safety concerns this finding highlights
+In a SHORT single paragraph of no more than 4 sentences, cover: what this finding
+indicates about the ship's operations, why this specific VIQ question is the best
+match, and the key compliance or safety concern it highlights. Be concise - combine
+these points into flowing sentences, not separate sections.
 
-Write the analysis as plain prose paragraphs only. Do not use markdown: no headings
-(#, ##, ###), no bullet points or numbered lists, no bold/italic (** or *), no
-blockquotes (>), no horizontal rules (---). Plain sentences and paragraphs only.
-
-Provide complete analysis without truncation.
+Write as plain prose only. Do not use markdown: no headings (#, ##, ###), no bullet
+points or numbered lists, no bold/italic (** or *), no blockquotes (>), no
+horizontal rules (---).
 """
 
         try:
             stream = rag_engine.client.chat.completions.create(
                 model=os.getenv("OPENAI_MODEL", "gpt-5.4-mini"),
                 messages=[{"role": "user", "content": prompt}],
-                max_completion_tokens=400,
+                max_completion_tokens=200,
                 temperature=0.2,
                 stream=True
             )
