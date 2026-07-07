@@ -17,8 +17,8 @@ NC='\033[0m' # No Color
 PROJECT_DIR="/opt/sire-viq-map_new"
 CONTAINER_NAME="viq-rag-system-new"
 SERVICE_NAME="viq-rag-system"
-HOST_PORT=8003
-GIT_BRANCH="main"  # Change this to your branch name
+HOST_PORT=8004
+GIT_BRANCH="development_branch"  # Change this to your branch name
 
 echo -e "${BLUE}=========================================="
 echo "🔄 VIQ RAG - Git Pull & Redeploy"
