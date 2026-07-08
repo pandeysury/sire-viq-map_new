@@ -215,7 +215,7 @@ def perform_search(query: str, vessel_type: str, top_k: int, confidence_threshol
                 similarity_score = 1 - distance
                 viq_number = metadata.get('viq_number', 'Unknown')
 
-                if viq_number in seen_viq_numbers or similarity_score < 0.6:
+                if viq_number in seen_viq_numbers or similarity_score < 0.5:
                     continue
 
                 seen_viq_numbers.add(viq_number)
