@@ -187,8 +187,7 @@ async def submit_feedback(request: Request, db: Session = Depends(get_db)):
 
                 logger.info(f"Added feedback to training: {finding[:50]}... -> VIQ {correct_viq}")
 
-                feedback_type = data.get('feedback_type', 'correction')
-                message = "Feedback submitted and system learned from correction" if feedback_type != 'thumbs_up' else "System learned - it will give better results next time!"
+                message = "Thanks for the feedback!"
 
                 return {
                     "status": "success",
@@ -202,7 +201,7 @@ async def submit_feedback(request: Request, db: Session = Depends(get_db)):
 
         return {
             "status": "success",
-            "message": "Feedback submitted successfully",
+            "message": "Thanks for the feedback!",
             "learned": False,
             "timestamp": datetime.now().isoformat()
         }
