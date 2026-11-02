@@ -92,6 +92,14 @@
 
         function AdminDashboard() {
             const [activeTab, setActiveTab] = useState('overview');
+            const [activeModule, setActiveModule] = useState(() => {
+                try {
+                    const stored = localStorage.getItem('viqmap_active_module');
+                    return stored === 'risq' ? 'risq' : 'viq';
+                } catch (e) {
+                    return 'viq';
+                }
+            });
             const [stats, setStats] = useState(null);
             const [feedbackStats, setFeedbackStats] = useState(null);
             const [searchHistory, setSearchHistory] = useState([]);
@@ -99,6 +107,21 @@
             const [popup, setPopup] = useState({ show: false, type: '', message: '' });
             const [toast, setToast] = useState({ show: false, type: '', message: '' });
             const [dashboardData, setDashboardData] = useState(null);
+
+            // RISQ training tab state (separate from VIQ dashboard state above)
+            const [risqTrainingStatus, setRisqTrainingStatus] = useState(null);
+            const [risqDocuments, setRisqDocuments] = useState([]);
+            const [risqFeedbackStats, setRisqFeedbackStats] = useState(null);
+            const [risqTraining, setRisqTraining] = useState(false);
+            const [risqUploading, setRisqUploading] = useState(false);
+
+            const switchModule = (newModule) => {
+                if (newModule === activeModule) return;
+                try {
+                    localStorage.setItem('viqmap_active_module', newModule);
+                } catch (e) { /* ignore storage errors */ }
+                setActiveModule(newModule);
+            };
 
             useEffect(() => {
                 if (toast.show) {
@@ -178,6 +201,252 @@
                     setSearchHistory([]);
                 }
             };
+
+            // ===== RISQ training endpoints (isolated from VIQ fetch functions above) =====
+
+            const fetchRisqTrainingStatus = async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/v1/risq/training-status`);
+                    const data = await response.json();
+                    setRisqTrainingStatus(data);
+                } catch (err) {
+                    console.error('Error fetching RISQ training status:', err);
+                }
+            };
+
+            const fetchRisqDocuments = async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/v1/risq/documents`);
+                    const data = await response.json();
+                    setRisqDocuments(data.documents || []);
+                } catch (err) {
+                    console.error('Error fetching RISQ documents:', err);
+                }
+            };
+
+            const fetchRisqFeedbackStats = async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/v1/risq/feedback/stats`);
+                    const data = await response.json();
+                    setRisqFeedbackStats(data);
+                } catch (err) {
+                    console.error('Error fetching RISQ feedback stats:', err);
+                }
+            };
+
+            const fetchRisqData = async () => {
+                await Promise.all([fetchRisqTrainingStatus(), fetchRisqDocuments(), fetchRisqFeedbackStats()]);
+            };
+
+            const handleRisqUpload = async (file) => {
+                if (!file) return;
+                setRisqUploading(true);
+                try {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    const response = await fetch(`${API_BASE_URL}/api/v1/risq/upload`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.detail || 'Upload failed');
+                    }
+                    setToast({ show: true, type: 'success', message: `Uploaded ${data.saved_as}` });
+                    await fetchRisqData();
+                } catch (err) {
+                    setToast({ show: true, type: 'error', message: 'RISQ upload failed: ' + err.message });
+                } finally {
+                    setRisqUploading(false);
+                }
+            };
+
+            const handleRisqTrain = async () => {
+                setRisqTraining(true);
+                try {
+                    const response = await fetch(`${API_BASE_URL}/api/v1/risq/train`, { method: 'POST' });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.detail || 'Training failed');
+                    }
+                    setToast({ show: true, type: 'success', message: 'RISQ training completed' });
+                    await fetchRisqData();
+                } catch (err) {
+                    setToast({ show: true, type: 'error', message: 'RISQ training failed: ' + err.message });
+                } finally {
+                    setRisqTraining(false);
+                }
+            };
+
+            useEffect(() => {
+                fetchRisqData();
+            }, []);
+
+            const RisqTrainingTab = () => (
+                <div className="space-y-6">
+                    <div className="bg-white rounded-lg shadow-lg p-6">
+                        <h3 className="text-xl font-bold mb-2">
+                            <i className="fas fa-upload mr-2 text-indigo-600"></i>
+                            RISQ File Upload
+                        </h3>
+                        <p className="text-sm text-gray-600 mb-4">
+                            Upload the RISQ question-master or historical-findings Excel workbook, or a RISQ reference PDF.
+                            Uploading does not train automatically &mdash; run training below after uploading.
+                        </p>
+                        <input
+                            type="file"
+                            accept=".xlsx,.xls,.pdf"
+                            disabled={risqUploading}
+                            onChange={(e) => handleRisqUpload(e.target.files[0])}
+                            className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                        />
+                        {risqUploading && <p className="text-sm text-gray-500 mt-2">Uploading...</p>}
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow-lg p-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xl font-bold">
+                                <i className="fas fa-cogs mr-2 text-indigo-600"></i>
+                                RISQ Training
+                            </h3>
+                            <button
+                                onClick={handleRisqTrain}
+                                disabled={risqTraining}
+                                className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                            >
+                                {risqTraining ? (
+                                    <span><i className="fas fa-spinner fa-spin mr-2"></i>Training...</span>
+                                ) : (
+                                    <span><i className="fas fa-play mr-2"></i>Run Training</span>
+                                )}
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div className="bg-gray-50 rounded-lg p-4">
+                                <p className="text-sm text-gray-600">RISQ Questions</p>
+                                <p className="text-2xl font-bold text-gray-800">{risqTrainingStatus?.collection_counts?.questions ?? 0}</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-lg p-4">
+                                <p className="text-sm text-gray-600">Historical Findings</p>
+                                <p className="text-2xl font-bold text-gray-800">{risqTrainingStatus?.collection_counts?.training ?? 0}</p>
+                                {risqFeedbackStats?.learned_from_feedback > 0 && (
+                                    <p className="text-xs text-indigo-600 mt-1">
+                                        includes {risqFeedbackStats.learned_from_feedback} learned from feedback
+                                    </p>
+                                )}
+                            </div>
+                            <div className="bg-gray-50 rounded-lg p-4">
+                                <p className="text-sm text-gray-600">PDF Chunks</p>
+                                <p className="text-2xl font-bold text-gray-800">{risqTrainingStatus?.collection_counts?.documents ?? 0}</p>
+                            </div>
+                        </div>
+
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="text-left text-gray-500 border-b">
+                                    <th className="py-2">File</th>
+                                    <th className="py-2">Type</th>
+                                    <th className="py-2">Total</th>
+                                    <th className="py-2">Upserted</th>
+                                    <th className="py-2">Matched</th>
+                                    <th className="py-2">Unmatched</th>
+                                    <th className="py-2">Invalid</th>
+                                    <th className="py-2">Status</th>
+                                    <th className="py-2">Last Run</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {(risqTrainingStatus?.reports || []).map((r, i) => (
+                                    <tr key={i} className="border-b last:border-0">
+                                        <td className="py-2">{r.source_file}</td>
+                                        <td className="py-2">{r.document_type}</td>
+                                        <td className="py-2">{r.total_rows}</td>
+                                        <td className="py-2">{r.upserted}</td>
+                                        <td className="py-2">{r.matched ?? '-'}</td>
+                                        <td className="py-2">{r.unmatched ?? '-'}</td>
+                                        <td className="py-2">{r.invalid}</td>
+                                        <td className="py-2">
+                                            <span className={`px-2 py-1 rounded-full text-xs ${
+                                                r.status === 'success' ? 'bg-green-100 text-green-700' :
+                                                r.status === 'partial' ? 'bg-yellow-100 text-yellow-700' :
+                                                'bg-red-100 text-red-700'
+                                            }`}>{r.status}</span>
+                                        </td>
+                                        <td className="py-2">{r.started_at ? new Date(r.started_at).toLocaleString() : '-'}</td>
+                                    </tr>
+                                ))}
+                                {(!risqTrainingStatus?.reports || risqTrainingStatus.reports.length === 0) && (
+                                    <tr><td colSpan="9" className="py-6 text-center text-gray-400">No RISQ training runs yet</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* RISQ Feedback / Learning — mirrors the VIQ Overview feedback cards,
+                        reading only from RisqFeedback + risq_training (never VIQ's tables) */}
+                    <div className="bg-white rounded-lg shadow-lg p-6">
+                        <h3 className="text-xl font-bold mb-4">
+                            <i className="fas fa-comments mr-2 text-indigo-600"></i>
+                            RISQ Feedback &amp; Learning
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="bg-gray-50 rounded-lg p-4">
+                                <p className="text-sm text-gray-600">Total Feedback</p>
+                                <p className="text-3xl font-bold text-gray-800">{risqFeedbackStats?.total_feedback ?? 0}</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-lg p-4">
+                                <p className="text-sm text-gray-600">Thumbs Up</p>
+                                <p className="text-3xl font-bold text-green-600">{risqFeedbackStats?.positive_feedback ?? 0}</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-lg p-4">
+                                <p className="text-sm text-gray-600">Thumbs Down</p>
+                                <p className="text-3xl font-bold text-red-600">{risqFeedbackStats?.negative_feedback ?? 0}</p>
+                            </div>
+                            <div className="bg-gray-50 rounded-lg p-4">
+                                <p className="text-sm text-gray-600">Learned into Training Data</p>
+                                <p className="text-3xl font-bold text-indigo-600">{risqFeedbackStats?.learned_from_feedback ?? 0}</p>
+                            </div>
+                        </div>
+                        {risqFeedbackStats?.total_feedback > 0 && (
+                            <p className="text-sm text-gray-500 mt-3">
+                                User satisfaction: <strong>{risqFeedbackStats.user_satisfaction}%</strong>
+                                {' '}&middot; corrections/clarifications provided: <strong>{risqFeedbackStats.corrections_provided}</strong>
+                            </p>
+                        )}
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow-lg p-6">
+                        <h3 className="text-xl font-bold mb-4">
+                            <i className="fas fa-folder-open mr-2 text-indigo-600"></i>
+                            RISQ Documents
+                        </h3>
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="text-left text-gray-500 border-b">
+                                    <th className="py-2">File</th>
+                                    <th className="py-2">Type</th>
+                                    <th className="py-2">Records</th>
+                                    <th className="py-2">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {risqDocuments.map((doc, i) => (
+                                    <tr key={i} className="border-b last:border-0">
+                                        <td className="py-2">{doc.source_file}</td>
+                                        <td className="py-2">{doc.document_type}</td>
+                                        <td className="py-2">{doc.upserted}</td>
+                                        <td className="py-2">{doc.status}</td>
+                                    </tr>
+                                ))}
+                                {risqDocuments.length === 0 && (
+                                    <tr><td colSpan="4" className="py-6 text-center text-gray-400">No RISQ documents ingested yet</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            );
 
             const StatCard = ({ icon, title, value, subtitle, color }) => (
                 <div className={`stat-card bg-white rounded-lg shadow-lg p-6 border-l-4 ${color}`}>
@@ -692,7 +961,21 @@
                                         Real-time monitoring and analytics
                                     </p>
                                 </div>
-                                <div className="flex space-x-3">
+                                <div className="flex items-center space-x-3">
+                                    <div className="bg-white bg-opacity-20 rounded-lg p-1 flex items-center" role="group" aria-label="Module selector">
+                                        <button
+                                            onClick={() => switchModule('viq')}
+                                            className={`px-3 py-1.5 rounded-md text-xs md:text-sm font-medium transition-all ${activeModule === 'viq' ? 'bg-white text-purple-700' : 'text-white opacity-80 hover:opacity-100'}`}
+                                        >
+                                            VIQ Map
+                                        </button>
+                                        <button
+                                            onClick={() => switchModule('risq')}
+                                            className={`px-3 py-1.5 rounded-md text-xs md:text-sm font-medium transition-all ${activeModule === 'risq' ? 'bg-white text-purple-700' : 'text-white opacity-80 hover:opacity-100'}`}
+                                        >
+                                            RISQ
+                                        </button>
+                                    </div>
                                     <button
                                         onClick={() => window.location.href = 'index.html'}
                                         className="bg-white bg-opacity-20 hover:bg-opacity-30 text-white px-4 py-2 rounded-lg transition-all duration-200 flex items-center space-x-2"
@@ -721,7 +1004,8 @@
                                     { id: 'analytics', label: 'Analytics', icon: 'fa-chart-pie' },
                                     { id: 'history', label: 'Search History', icon: 'fa-history' },
                                     // { id: 'questions', label: 'VIQ Questions', icon: 'fa-question-circle' },
-                                    { id: 'performance', label: 'Performance', icon: 'fa-chart-bar' }
+                                    { id: 'performance', label: 'Performance', icon: 'fa-chart-bar' },
+                                    { id: 'risq-training', label: 'RISQ Training', icon: 'fa-clipboard-check' }
                                 ].map(tab => (
                                     <button
                                         key={tab.id}
@@ -745,6 +1029,7 @@
                         {activeTab === 'history' && <SearchHistoryTab />}
                         {activeTab === 'questions' && <VIQQuestionsTab />}
                         {activeTab === 'performance' && <PerformanceTab />}
+                        {activeTab === 'risq-training' && <RisqTrainingTab />}
                     </div>
                     </div>
 

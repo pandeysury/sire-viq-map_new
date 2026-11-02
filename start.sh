@@ -26,5 +26,4 @@ fi
 
 # Start the backend server
 echo "🚀 Starting backend server..."
-cd backend
-python main.py
+python run.py

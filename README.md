@@ -32,31 +32,31 @@ A production-ready AI-powered system that matches ship audit findings to relevan
 ## 🏗️ Architecture
 
 ```
-viq-rag-system/
-├── backend/
-│   ├── app/
-│   │   ├── main.py              # FastAPI application with lifespan management
-│   │   ├── config.py            # Comprehensive configuration with Pydantic
-│   │   ├── api/routes/
-│   │   │   └── search.py        # RESTful API endpoints with validation
-│   │   ├── core/
-│   │   │   ├── rag_engine.py    # RAG engine with OpenAI integration
-│   │   │   ├── vector_store.py  # ChromaDB vector store with embeddings
-│   │   │   └── pdf_processor.py # Advanced document processing
-│   │   ├── models/
-│   │   │   └── schemas.py       # Pydantic models with validation
-│   │   └── utils/
-│   │       └── helpers.py       # Utility functions and decorators
-│   ├── data/
-│   │   ├── pdfs/               # VIQ documents and processed data
-│   │   └── vectordb/           # ChromaDB persistence
-│   ├── requirements.txt        # Production dependencies
-│   ├── .env                   # Environment configuration
-│   ├── start.sh              # Automated startup script
-│   └── test_system.py        # Comprehensive test suite
+sire-viq-map/
+├── app/
+│   ├── main.py                  # FastAPI app creation, middleware, router mounting
+│   ├── config.py                # Settings (env vars) via Pydantic
+│   ├── database.py              # SQLAlchemy models + session (VIQ + RISQ tables)
+│   ├── state.py                 # Shared OpenAI/ChromaDB client handles
+│   ├── schemas.py                # Pydantic request/response models
+│   ├── api/routes/
+│   │   ├── viq.py               # /api/v1/search, /analyze-finding, /feedback...
+│   │   ├── risq.py              # /api/v1/risq/*
+│   │   └── admin.py             # /api/v1/dashboard, /analytics, /search-history...
+│   └── services/
+│       ├── viq_engine.py        # VIQ search/analyze business logic
+│       └── risq_engine.py       # RISQ search business logic
+├── scripts/                     # Training/ingestion CLIs (train_from_excel.py, etc.)
 ├── frontend/
-│   └── index.html            # React-based web interface
-└── README.md                 # This file
+│   ├── index.html               # Main search UI (VIQ + RISQ toggle)
+│   └── admin.html               # Admin dashboard
+├── data/                        # Runtime data (gitignored): vectordb, viq_system.db,
+│                                 # training/, risqData/, documents/, pdfs/
+├── tests/
+├── run.py                       # Entry point (uvicorn app.main:app)
+├── requirements.txt
+├── .env                         # Environment configuration (gitignored)
+└── README.md                    # This file
 ```
 
 ## 🚀 Quick Start
@@ -69,7 +69,7 @@ viq-rag-system/
 ### 1. Setup & Installation
 
 ```bash
-cd viq-rag-system/backend
+cd sire-viq-map
 
 # Automated setup (recommended)
 ./start.sh
@@ -89,7 +89,7 @@ echo "OPENAI_API_KEY=sk-proj-your-key-here" > .env
 
 ### 3. Add VIQ Data
 
-Place your VIQ documents in `backend/data/pdfs/`:
+Place your VIQ documents in `data/pdfs/`:
 - Text files (`.txt`) - SIRE VIQ question libraries
 - CSV files (`.csv`) - Structured VIQ data
 - PDF files (`.pdf`) - VIQ documents (auto-processed)
@@ -101,7 +101,7 @@ Place your VIQ documents in `backend/data/pdfs/`:
 ./start.sh
 
 # Or directly
-python3 -m app.main
+python3 run.py
 ```
 
 ### 5. Access the Application

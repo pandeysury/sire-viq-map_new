@@ -19,8 +19,9 @@ class Settings(BaseSettings):
     OPENAI_MAX_TOKENS: int = 1000
     OPENAI_TEMPERATURE: float = 0.1
     
-    # ChromaDB Settings
-    CHROMA_PERSIST_DIRECTORY: str = "data/vectordb"
+    # ChromaDB Settings (VIQ and RISQ each have their own physically
+    # separate vector store directory — see app/state.py / app/main.py)
+    CHROMA_PERSIST_DIRECTORY: str = "data/viq_vectordb"
     CHROMA_COLLECTION_NAME: str = "viq_questions"
     
     # Embedding Settings
@@ -44,8 +45,8 @@ class Settings(BaseSettings):
     # Data Paths
     BASE_DIR: Path = Path(__file__).parent.parent
     DATA_DIR: Path = BASE_DIR / "data"
-    PDFS_DIR: Path = DATA_DIR / "pdfs"
-    VECTORDB_DIR: Path = DATA_DIR / "vectordb"
+    VIQ_VECTORDB_DIR: Path = DATA_DIR / "viq_vectordb"
+    RISQ_VECTORDB_DIR: Path = DATA_DIR / "risq_vectordb"
     
     # Logging
     LOG_LEVEL: str = "INFO"
@@ -54,7 +55,21 @@ class Settings(BaseSettings):
     # Performance
     MAX_CONCURRENT_REQUESTS: int = 10
     REQUEST_TIMEOUT: int = 30
-    
+
+    # ===== RISQ MODULE SETTINGS (additive, isolated from VIQ) =====
+    RISQ_DATA_DIR: Path = Path(__file__).parent.parent / "data" / "risqData"
+    RISQ_PDF_DIR: Path = RISQ_DATA_DIR / "pdfs"
+    RISQ_QUESTIONS_FILE: str = "Risq 3.2 R2 - 25.02.26 updated 2.xlsx"
+    RISQ_QUESTIONS_SHEET: str = "Risq 3.2 R1"
+    RISQ_TRAINING_FILE: str = "RISQ training data.xlsx"
+    RISQ_TRAINING_SHEET: str = "ag-grid"
+    RISQ_CHROMA_QUESTIONS_COLLECTION: str = "risq_questions"
+    RISQ_CHROMA_TRAINING_COLLECTION: str = "risq_training"
+    RISQ_CHROMA_DOCUMENTS_COLLECTION: str = "risq_documents"
+    RISQ_SIMILARITY_THRESHOLD: float = 0.3
+    RISQ_MAX_UPLOAD_MB: int = 25
+    RISQ_DEFAULT_TOP_K: int = 3
+
     class Config:
         env_file = ".env"
         case_sensitive = True

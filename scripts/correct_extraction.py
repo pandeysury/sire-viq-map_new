@@ -33,8 +33,8 @@ def extract_viq_questions():
     # Use absolute paths
     script_dir = Path(__file__).parent.parent
     pdf_files = [
-        script_dir / 'data/documents/SIRE 2.0 Question Library - Part 1 - Chapters 1 to 7 - Version 1.0 (January 2022) 3.pdf',
-        script_dir / 'data/documents/SIRE 2.0 Question Library - Part 2 - Chapters 8 to 12 - Version 1.0 (January 2022) 3.pdf'
+        script_dir / 'data/viq_documents/SIRE 2.0 Question Library - Part 1 - Chapters 1 to 7 - Version 1.0 (January 2022) 3.pdf',
+        script_dir / 'data/viq_documents/SIRE 2.0 Question Library - Part 2 - Chapters 8 to 12 - Version 1.0 (January 2022) 3.pdf'
     ]
     
     all_questions = {}
@@ -128,7 +128,7 @@ def store_in_chromadb(questions):
     
     # Initialize ChromaDB with absolute path
     script_dir = Path(__file__).parent.parent
-    persist_dir = script_dir / 'data' / 'vectordb'
+    persist_dir = script_dir / 'data' / 'viq_vectordb'
     persist_dir.mkdir(parents=True, exist_ok=True)
     
     client = chromadb.PersistentClient(path=str(persist_dir))

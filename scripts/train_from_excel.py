@@ -31,7 +31,7 @@ class VIQTrainingSystem:
         self.training_data = []
         # Use absolute path from script location
         script_dir = Path(__file__).parent.parent
-        self.training_dir = script_dir / 'data' / 'training'
+        self.training_dir = script_dir / 'data' / 'viq_training'
         self.training_dir.mkdir(parents=True, exist_ok=True)
         
     def _get_already_processed_files(self, client):
@@ -54,14 +54,14 @@ class VIQTrainingSystem:
         print("=" * 60)
 
         script_dir = Path(__file__).parent.parent
-        persist_dir = script_dir / 'data' / 'vectordb'
+        persist_dir = script_dir / 'data' / 'viq_vectordb'
         client = chromadb.PersistentClient(path=str(persist_dir))
         already_processed = self._get_already_processed_files(client)
 
         excel_files = list(self.training_dir.glob("*.xlsx")) + list(self.training_dir.glob("*.xls"))
         
         if not excel_files:
-            print("❌ No Excel files found in data/training/")
+            print("❌ No Excel files found in data/viq_training/")
             print("   Please add Excel files with columns: Finding, VIQ Number")
             return False
 
@@ -178,7 +178,7 @@ class VIQTrainingSystem:
         
         # Use absolute path from script location
         script_dir = Path(__file__).parent.parent
-        persist_dir = script_dir / 'data' / 'vectordb'
+        persist_dir = script_dir / 'data' / 'viq_vectordb'
         client = chromadb.PersistentClient(path=str(persist_dir))
         
         # Get or create training collection — never delete anything
@@ -230,7 +230,7 @@ class VIQTrainingSystem:
         
         # Use absolute path from script location
         script_dir = Path(__file__).parent.parent
-        persist_dir = script_dir / 'data' / 'vectordb'
+        persist_dir = script_dir / 'data' / 'viq_vectordb'
         client = chromadb.PersistentClient(path=str(persist_dir))
         
         try:
@@ -285,7 +285,7 @@ def main():
     print("🚢 VIQ Training System")
     print("=" * 60)
     print("\n📋 Instructions:")
-    print("1. Place Excel files in: backend/data/training/")
+    print("1. Place Excel files in: data/viq_training/")
     print("2. Excel should have columns: 'Finding' and 'VIQ Number'")
     print("3. Run this script to train the system")
     print("\n" + "=" * 60)
